@@ -9,6 +9,16 @@ This workspace is for personal investment research, planning, and assistant work
 - Cover Hong Kong, Japan, and US markets by default.
 - When market conventions differ by region, state the relevant market, currency, trading venue, timezone, and regulatory context.
 
+## Workspace Configuration
+
+These are convenience defaults for tools and workflows. They are not authorization to use external services or make changes without explicit confirmation.
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| Neon project name | `ai-investment` | Preferred Neon project for portfolio schema work |
+| Portfolio schema proposal | `data/portfolio-schema-proposal.md` | Source of truth for schema details; confirm before applying changes |
+| Default response language | Hong Kong Traditional Chinese | Unless the user asks otherwise |
+
 ## Safety Boundaries
 
 - Do not place trades, move money, submit forms, open accounts, close accounts, change beneficiaries, or take any irreversible financial action.
@@ -33,11 +43,6 @@ This workspace is for personal investment research, planning, and assistant work
 - Do not hardcode secrets in `.cursor/mcp.json`, scripts, data files, or skill files.
 - Avoid enabling tools that can initiate trades, transfers, payments, password resets, or account changes.
 
-## Workspace Parameters
-
-- Neon project name: `ai-investment`.
-- Treat these parameters as convenience hints, not authorization to use external services or make changes without explicit confirmation.
-
 ## Workspace Conventions
 
 - Do not add code, scripts, applications, notebooks, or software project scaffolding by default.
@@ -53,12 +58,7 @@ This workspace is for personal investment research, planning, and assistant work
 ## Portfolio Data Schema Guidance
 
 - The initial portfolio storage target is Neon/Postgres.
-- Keep the first schema minimal: `accounts`, `trades`, and `cash_movements`.
-- Keep `instruments` out of scope initially. Store `symbol`, `market`, `asset_type`, and `currency` directly on trade and snapshot records until the data model needs normalization.
-- Treat `position_snapshots` as optional. Add it when broker/API reconciliation or historical portfolio snapshots become useful.
-- Use `data/portfolio-schema-proposal.md` as the reference proposal for the initial schema.
-- Store quantities and money values as Postgres `numeric`, not floating point types.
-- Store trade timestamps as `timestamptz` and settlement dates as `date`.
-- Include `source` and `external_id` fields where practical to support deduplication when importing from broker CSVs or APIs.
+- Treat `data/portfolio-schema-proposal.md` as the source of truth for schema details.
+- Avoid duplicating table scope, columns, indexes, or type details in configuration sections.
 - Do not store credentials, API keys, account numbers, raw brokerage exports, tax files, or full statements in Neon or this workspace.
 - Do not apply Neon database changes without first summarizing the intended schema changes and receiving explicit user confirmation.
