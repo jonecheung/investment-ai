@@ -1,0 +1,46 @@
+# Secrets and credentials
+.env
+.env.*
+**/.env
+**/.env.*
+**/credentials.json
+**/secrets.json
+**/*.key
+**/*.pem
+**/id_rsa
+**/id_rsa.pub
+
+# Raw financial documents and exports
+statements/
+tax/
+exports/
+credentials/
+secrets/
+brokerage/
+banking/
+**/*statement*
+**/*tax*
+**/*1099*
+**/*w2*
+**/*k-1*
+**/*export*
+
+# Sensitive or bulky data formats
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.pdf
+*.doc
+*.docx
+*.parquet
+*.sqlite
+*.sqlite3
+*.db
+
+# Local/generated files
+.DS_Store
+*.log
+tmp/
+temp/
+cache/
