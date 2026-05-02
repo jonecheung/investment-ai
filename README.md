@@ -9,7 +9,10 @@ It is not a coding workspace. The assistant should avoid adding code, scripts, a
 This workspace is for:
 
 - Investment research and analysis support
+- Research idea intake, scheduling, and execution tracking
+- Structured tradable ticker proposal research
 - Portfolio review support
+- Sanitized portfolio and trading history schema planning
 - Market and product research
 - Safe integration with external services through Cursor MCP
 - Reusable assistant workflows through Agent Skills
@@ -39,6 +42,60 @@ Covered markets:
 - Hong Kong
 - Japan
 - United States
+
+## High-Level Data Flow
+
+The workspace separates research workflow data from portfolio and trading history data. Research outputs may support human review and monitoring, but they do not directly execute trades or move money.
+
+```mermaid
+flowchart TD
+  subgraph IR[Idea Research Data Track]
+    A[Original Idea]
+    B[Research Ideas<br/>idea backlog and schedule]
+    C[Research Brief<br/>expanded research input]
+    D[Deep Research Run]
+    E[Research Runs<br/>execution log]
+    F[Research Results<br/>summary and result files]
+    G[Updated Research Idea<br/>latest run, summary, recency]
+  end
+
+  subgraph TP[Tradable Proposal Track]
+    H[Completed Research Context]
+    I[Follow-up Opportunity Scan]
+    J[Structured Ticker Opportunities]
+    K[Trade Proposals<br/>research hypotheses and monitoring signals]
+  end
+
+  subgraph PF[Portfolio Data Track]
+    L[Approved Sanitized Portfolio Inputs]
+    M[Portfolio Database]
+    N[Accounts]
+    O[Trades]
+    P[Cash Movements]
+    Q[Position Snapshots]
+  end
+
+  A --> B --> C --> D --> E --> F --> G
+
+  G --> H --> I --> J --> K
+
+  K --> R[Human Review / Decision Support]
+  R --> S[Watchlist / Monitoring / Possible Trade Framing]
+  S -. only approved sanitized records .-> L
+
+  L --> M
+  M --> N
+  M --> O
+  M --> P
+  M --> Q
+  N --> O
+  N --> P
+  N --> Q
+
+  Z[Safety Boundary<br/>Research only<br/>No trade execution or money movement<br/>No raw sensitive exports stored<br/>External writes require confirmation]
+  Z --- R
+  Z --- L
+```
 
 ## Workspace Structure
 
