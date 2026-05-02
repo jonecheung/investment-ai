@@ -2,6 +2,27 @@
 
 Use this directory only for sanitized examples, schemas, derived summaries, or pointers to approved external data sources.
 
+## File Naming Convention
+
+Use lowercase, kebab-case filenames with a type prefix to distinguish file intent:
+
+- `schema-...` for schema proposals and data model specs
+- `prompt-...` for reusable system/user prompt assets
+- `template-...` for reusable fill-in templates
+- `snapshot-...` for point-in-time derived summaries/exports
+- `ref-...` for reference notes and source pointers
+
+Recommended pattern:
+
+- `type-topic-purpose-vN.md`
+
+Guidelines:
+
+- Keep prefixes lowercase (do not use uppercase prefixes)
+- Use concise, descriptive names
+- Prefer `.md` for text documentation and prompt assets
+- Add version suffixes only when multiple maintained versions are needed
+
 Do not store:
 
 - Credentials, API keys, access tokens, or seed phrases
