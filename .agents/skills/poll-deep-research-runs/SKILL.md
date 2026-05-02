@@ -1,3 +1,9 @@
+---
+name: poll-deep-research-runs
+description: Poll Deep Research Runs
+disable-model-invocation: true
+---
+
 # Poll Deep Research Runs
 
 Poll in-flight deep-research runs from `Research Runs`, then update `Research Runs` and `Research Ideas` with completion metadata and summaries.

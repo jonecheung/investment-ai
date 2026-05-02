@@ -1,3 +1,9 @@
+---
+name: expand-new-ideas
+description: Expand New Ideas
+disable-model-invocation: true
+---
+
 # Expand New Ideas
 
 Convert eligible Notion `Research Ideas` entries from `Original Idea` into `Research Input`, then move status to `expanded`.

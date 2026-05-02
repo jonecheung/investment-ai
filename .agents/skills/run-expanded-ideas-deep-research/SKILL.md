@@ -1,3 +1,9 @@
+---
+name: run-expanded-ideas-deep-research
+description: Run Expanded Ideas Deep Research
+disable-model-invocation: true
+---
+
 # Run Expanded Ideas Deep Research
 
 Find eligible `Research Ideas` records (`Status = expanded` and `Research Input` is not empty), create deep-research runs, then immediately record run metadata in Notion (`Research Ideas` + `Research Runs`) without polling.

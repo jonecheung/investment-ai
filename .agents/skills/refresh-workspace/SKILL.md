@@ -1,3 +1,9 @@
+---
+name: refresh-workspace
+description: Refresh Workspace
+disable-model-invocation: true
+---
+
 # Refresh Workspace
 
 Refresh your working understanding of this workspace in read-only mode.
