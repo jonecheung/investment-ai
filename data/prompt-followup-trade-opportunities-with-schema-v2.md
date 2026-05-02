@@ -1,0 +1,225 @@
+# Follow-up Deep Research Prompt + Output Schema (Reusable)
+
+Use this prompt for a follow-up task chained to an existing deep-research interaction.
+
+## Prompt (input text)
+
+```text
+Follow up on the prior deep-research context and identify related tradable tickers.
+
+For each ticker:
+1) Explain how it relates to the research thesis (causal/supply-chain/competitive/macro linkage as relevant).
+2) Provide a research hypothesis with:
+   - trade_type: long / short / other
+   - entry_criteria (non-quantitative, event/observation based)
+   - exit_criteria (non-quantitative, event/observation based)
+   - conviction_level: low / medium / high
+   - key_invalidation_event that should reverse or invalidate the view
+
+Rules:
+- Output must strictly follow the provided JSON schema.
+- Be explicit about assumptions and uncertainty.
+- If evidence is limited, include only plausible tickers and lower conviction accordingly.
+- relationship_to_research must be free-text (not categorical labels).
+- This is research framing, not personalized investment advice.
+```
+
+## Output Schema (task_spec.output_schema.json_schema)
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version, e.g. v2.1."
+    },
+    "analysis_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "previous_interaction_id": {
+          "type": "string",
+          "description": "Prior interaction ID supplied to this follow-up run for context."
+        },
+        "focus_markets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["HK", "JP", "US", "OTHER"]
+          }
+        },
+        "analysis_timeframe": {
+          "type": "string",
+          "enum": ["near_term", "medium_term", "long_term", "mixed"]
+        }
+      },
+      "required": [
+        "previous_interaction_id",
+        "focus_markets",
+        "analysis_timeframe"
+      ]
+    },
+    "thesis_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "core_thesis": { "type": "string" },
+        "key_drivers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "key_risks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "thesis_kill_criteria": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": [
+        "core_thesis",
+        "key_drivers",
+        "key_risks",
+        "thesis_kill_criteria"
+      ]
+    },
+    "ticker_opportunities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticker": { "type": "string" },
+          "company_name": { "type": "string" },
+          "asset_class": {
+            "type": "string",
+            "enum": ["equity", "etf", "bond", "future", "option", "crypto", "other"]
+          },
+          "market": {
+            "type": "string",
+            "enum": ["HK", "JP", "US", "OTHER"]
+          },
+          "exchange": { "type": "string" },
+          "currency": { "type": "string" },
+          "relationship_to_research": {
+            "type": "string",
+            "description": "Free-text explanation of how this ticker relates to the research thesis, including causal links and why it matters."
+          },
+          "trade_hypothesis": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "trade_type": {
+                "type": "string",
+                "enum": ["long", "short", "other"]
+              },
+              "other_trade_type": {
+                "type": ["string", "null"],
+                "description": "If trade_type is other, specify watchlist/hedge/no_trade/etc; else null."
+              },
+              "time_horizon": {
+                "type": "string",
+                "enum": ["near_term", "medium_term", "long_term", "event_driven", "unspecified"]
+              },
+              "rationale": { "type": "string" },
+              "entry_criteria": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "exit_criteria": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "key_invalidation_event": { "type": "string" },
+              "conviction_level": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+              },
+              "conviction_score": {
+                "type": ["number", "null"],
+                "description": "Optional 0-1 score; null if unavailable."
+              },
+              "conviction_note": { "type": "string" },
+              "risk_bucket": {
+                "type": "string",
+                "enum": ["fundamental", "event_driven", "macro_sensitive", "policy_sensitive", "supply_chain", "other"]
+              }
+            },
+            "required": [
+              "trade_type",
+              "other_trade_type",
+              "time_horizon",
+              "rationale",
+              "entry_criteria",
+              "exit_criteria",
+              "key_invalidation_event",
+              "conviction_level",
+              "conviction_score",
+              "conviction_note",
+              "risk_bucket"
+            ]
+          },
+          "assumptions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "open_questions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "monitoring_signals": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "ticker",
+          "company_name",
+          "asset_class",
+          "market",
+          "exchange",
+          "currency",
+          "relationship_to_research",
+          "trade_hypothesis",
+          "assumptions",
+          "open_questions",
+          "monitoring_signals"
+        ]
+      }
+    },
+    "output_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fact_assumption_boundary": {
+          "type": "string",
+          "enum": ["clear", "mixed", "weak"]
+        },
+        "missing_information": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "uncertainty_notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": [
+        "fact_assumption_boundary",
+        "missing_information",
+        "uncertainty_notes"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_context",
+    "thesis_snapshot",
+    "ticker_opportunities",
+    "output_quality"
+  ]
+}
+```
