@@ -6,7 +6,7 @@ Convert eligible Notion `Research Ideas` entries from `Original Idea` into `Rese
 
 1. Load guidance and prompt source:
    - Read `AGENTS.md`.
-   - Read `data/prompt-original-idea-to-deep-research-v2.md`.
+   - Read `data/prompt-original-idea-to-deep-research.md`.
    - Follow workspace safety rules and the `notion-api` skill.
 
 2. Validate auth and target objects (read-only):
@@ -25,13 +25,13 @@ Convert eligible Notion `Research Ideas` entries from `Original Idea` into `Rese
    - Summarize target object (Notion data source name + ID).
    - Summarize count of matched records.
    - Summarize exact updates to be applied per record:
-     - Set `Research Input` (generated from `Original Idea` using `data/prompt-original-idea-to-deep-research-v2.md`)
+     - Set `Research Input` (generated from `Original Idea` using `data/prompt-original-idea-to-deep-research.md`)
      - Set `Status` to `expanded`
    - Wait for explicit confirmation before any write.
 
 5. Generate research input:
    - For each matched record, use:
-     - System guidance from `data/prompt-original-idea-to-deep-research-v2.md`
+     - System guidance from `data/prompt-original-idea-to-deep-research.md`
      - The page's `Original Idea` as the user input
    - Produce concise, high-signal `Research Input` text only.
 

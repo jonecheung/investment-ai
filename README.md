@@ -61,7 +61,7 @@ Before saving any data into the workspace, the assistant should summarize what w
 
 The initial portfolio and trading history database will use Neon/Postgres. The first version should stay small and avoid a separate `instruments` table.
 
-The saved proposal is available at `data/schema-portfolio-proposal-v1.md` for later reference before applying changes to Neon.
+The saved proposal is available at `data/schema-portfolio-proposal.md` for later reference before applying changes to Neon.
 
 Recommended starting tables:
 

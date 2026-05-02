@@ -14,14 +14,14 @@ Use lowercase, kebab-case filenames with a type prefix to distinguish file inten
 
 Recommended pattern:
 
-- `type-topic-purpose-vN.md`
+- `type-topic-purpose.md`
 
 Guidelines:
 
 - Keep prefixes lowercase (do not use uppercase prefixes)
 - Use concise, descriptive names
 - Prefer `.md` for text documentation and prompt assets
-- Add version suffixes only when multiple maintained versions are needed
+- Do not include version numbers in filenames; use git history to track revisions
 
 Do not store:
 

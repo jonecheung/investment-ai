@@ -21,7 +21,7 @@ These are technical/runtime defaults for tools, integrations, and workspace refe
 | Key | Value | Notes |
 | --- | --- | --- |
 | Neon project name | `ai-investment` | Preferred Neon project for portfolio schema work |
-| Portfolio schema proposal | `data/schema-portfolio-proposal-v1.md` | Source of truth for schema details; confirm before applying changes |
+| Portfolio schema proposal | `data/schema-portfolio-proposal.md` | Source of truth for schema details; confirm before applying changes |
 | Notion ideas database | `Research Ideas` | Idea lifecycle and scheduling control |
 | Notion runs database | `Research Runs` | Run-level execution log and audit trail |
 | Tooling priority | CLI > `curl` API > MCP | MCP is fallback unless explicitly requested |
@@ -106,7 +106,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - Use `data/` only for sanitized examples, schemas, derived summaries, or pointers to approved external sources.
 - Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Neon.
 - Initial portfolio storage target is Neon/Postgres.
-- Treat `data/schema-portfolio-proposal-v1.md` as the source of truth for schema details.
+- Treat `data/schema-portfolio-proposal.md` as the source of truth for schema details.
 - Do not apply Neon schema/database changes without first summarizing intended changes and receiving explicit confirmation.
 
 ## Skills Policy
