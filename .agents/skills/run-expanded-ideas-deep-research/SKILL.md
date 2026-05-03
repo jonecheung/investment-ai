@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Run Expanded Ideas Deep Research
 
-Find eligible `Research Ideas` records (`Status = expanded` and `Research Input` is not empty), create deep-research runs, then immediately record run metadata in Notion (`Research Ideas` + `Research Runs`) without polling.
+Find eligible `Research Ideas` records (`Status = Expanded`, `Active = true`, and `Research Input` is not empty), create deep-research runs, then immediately record run metadata in Notion (`Research Ideas` + `Research Runs`) without polling.
 
 ## Steps
 
@@ -21,6 +21,7 @@ Find eligible `Research Ideas` records (`Status = expanded` and `Research Input`
    - Locate `Research Ideas` and `Research Runs` data sources.
    - Confirm required `Research Ideas` properties exist:
      - `Status`
+     - `Active`
      - `Research Input`
      - `Original Idea` (optional fallback title context)
      - `Last Run At`
@@ -29,7 +30,8 @@ Find eligible `Research Ideas` records (`Status = expanded` and `Research Input`
 
 3. Query eligible ideas from `Research Ideas`:
    - Filter:
-     - `Status` equals `expanded`
+     - `Status` equals `Expanded`
+     - `Active` equals `true`
      - `Research Input` is not empty
    - If no records match, report "no eligible ideas" and stop.
 
