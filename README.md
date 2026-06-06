@@ -12,7 +12,7 @@ This workspace is for:
 - Research idea intake, scheduling, and execution tracking
 - Structured tradable ticker proposal research
 - Portfolio review support
-- Sanitized portfolio and trading history schema planning
+- Notion portfolio and trading history schema planning
 - Market and product research
 - Safe integration with external services through Cursor MCP
 - Reusable assistant workflows through Agent Skills
@@ -28,7 +28,7 @@ This workspace is not for:
 
 ## Language And Scope
 
-Default communication language is Hong Kong Traditional Chinese unless otherwise requested.
+Default communication language is English unless otherwise requested.
 
 Covered product types:
 
@@ -63,16 +63,17 @@ flowchart TD
     H[Completed Research Context]
     I[Follow-up Opportunity Scan]
     J[Structured Ticker Opportunities]
-    K[Trade Proposals<br/>research hypotheses and monitoring signals]
+    K[Trading Proposals<br/>Layer 1 qualitative + Layer 2 price plan]
   end
 
   subgraph PF[Portfolio Data Track]
     L[Approved Sanitized Portfolio Inputs]
-    M[Portfolio Database]
+    M[Notion Portfolio]
     N[Accounts]
     O[Trades]
     P[Cash Movements]
     Q[Position Snapshots]
+    Sizing[Proposal Sizing]
   end
 
   A --> B --> C --> D --> E --> F --> G
@@ -88,14 +89,27 @@ flowchart TD
   M --> O
   M --> P
   M --> Q
+  M --> Sizing
   N --> O
   N --> P
   N --> Q
+  Sizing --> O
 
   Z[Safety Boundary<br/>Research only<br/>No trade execution or money movement<br/>No raw sensitive exports stored<br/>External writes require confirmation]
   Z --- R
   Z --- L
 ```
+
+## Tradable Proposal Layers
+
+Trading proposals follow a two-layer model documented in [`data/notion/research.md`](data/notion/research.md) (Trading Proposals section):
+
+| Layer | What | Where |
+| --- | --- | --- |
+| Layer 1 | Qualitative hypothesis from research import | `Trading Proposals` |
+| Layer 2 | Alpha Vantage last close + external single entry/stop/target prices | `Trading Proposals` price-plan fields |
+
+Layer 2 uses Alpha Vantage for `Last Price` only; `Entry Price`, `Stop Price`, and `Target Price` come from an external process. Portfolio sizing and execution history are defined separately. No automated order placement.
 
 ## Workspace Structure
 
@@ -114,30 +128,28 @@ Do not store credentials, API keys, access tokens, seed phrases, account numbers
 
 Before saving any data into the workspace, the assistant should summarize what will be saved, where it will be saved, and whether it may contain sensitive financial or personal information.
 
-## Minimal Portfolio Schema Plan
+## Notion Portfolio Schema Plan
 
-The initial portfolio and trading history database will use Neon/Postgres. The first version should stay small and avoid a separate `instruments` table.
+Portfolio and trading history live in Notion. The first version should stay small and avoid a separate instruments database.
 
-The saved proposal is available at `data/schema-portfolio-proposal.md` for later reference before applying changes to Neon.
+The saved schema is available at `data/notion/portfolio.md` for later reference before applying changes to Notion.
 
-Recommended starting tables:
+Recommended starting databases:
 
-- `accounts`: broker or exchange accounts, with a display name, provider, and base currency.
-- `trades`: executed buys and sells, storing `symbol`, `market`, `asset_type`, `side`, `quantity`, `price`, `currency`, fees, taxes, timestamps, source, and external import ID.
-- `cash_movements`: deposits, withdrawals, dividends, interest, fees, taxes, and adjustments, with currency, amount, type, timestamps, source, and optional related trade.
-
-Optional later table:
-
-- `position_snapshots`: periodic position snapshots for reconciliation against broker/API data, including quantity, average cost, market price, and market value.
+- `Accounts`: broker or exchange accounts, with a display name, provider, and base currency.
+- `Trades`: executed buys and sells, storing symbol, market, asset type, side, quantity, price, currency, fees, taxes, timestamps, source, and external import ID.
+- `Cash Movements`: deposits, withdrawals, dividends, interest, fees, taxes, and adjustments, with currency, amount, type, timestamps, source, and optional related trade.
+- `Position Snapshots`: periodic position snapshots for reconciliation against broker or API data, including quantity, average cost, market price, and market value.
+- `Proposal Sizing`: sized quantity and notional after combining an accepted trading proposal with portfolio state.
 
 Implementation notes:
 
-- Use Postgres `numeric` for quantities and money values.
-- Use `timestamptz` for trade and cash movement timestamps.
-- Use `date` for settlement dates.
+- Use Notion `number` for quantities and money values.
+- Use Notion `date` for trade and cash movement timestamps.
+- Use Notion relations for cross-database links such as trades to accounts, proposal sizing, and trading proposals.
 - Keep `source` and `external_id` fields for import deduplication.
 - Do not store credentials, account numbers, raw exports, tax documents, or full statements.
-- Make Neon schema changes only after explicit confirmation.
+- Make Notion portfolio database structure changes only after explicit confirmation.
 
 ## Safety
 

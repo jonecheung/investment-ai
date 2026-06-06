@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Run a follow-up research task against an existing Parallel `interaction_id` or `run_id`, generate structured tradable ticker proposals with Parallel Task API `task_spec.output_schema`, save local result files, validate output with `ajv-cli`, populate Notion `Research Runs`, and import validated rows into Notion `Trading Proposals`.
 
-Use this skill instead of `followup-tradable-tickers` when schema-constrained output is required. The older skill uses `parallel-cli research run --json`, which only makes CLI metadata JSON and does not enforce the research output schema.
+This is the canonical follow-up skill for tradable ticker imports. Canonical Notion import mapping: `data/notion/research.md` (Trading Proposals section, JSON Import Mapping).
 
 This workflow has fixed defaults so it can run without design questions:
 
@@ -19,7 +19,7 @@ This workflow has fixed defaults so it can run without design questions:
 - Use processor `core` by default.
 - Enforce output shape at task creation by sending:
   - `task_spec.output_schema.type = "json"`
-  - `task_spec.output_schema.json_schema = data/schema-tradable-tickers-output.json`
+  - `task_spec.output_schema.json_schema = data/parallel/output-tradable-tickers.json`
 - Remove schema metadata keys unsupported or unnecessary for Task API before sending the schema, at minimum `"$schema"` and `title`.
 - Save:
   - raw create response as `<filename>.create.json`
@@ -58,8 +58,8 @@ This workflow has fixed defaults so it can run without design questions:
 1. Load guidance and prompt sources:
    - Read `AGENTS.md`.
    - Read `.agents/skills/notion-api/SKILL.md`.
-   - Read `data/prompt-followup-tradable-tickers.md`.
-   - Read `data/schema-tradable-tickers-output.json`.
+   - Read `data/parallel/prompt-followup-tradable-tickers.md`.
+   - Read `data/parallel/output-tradable-tickers.json`.
    - Follow workspace safety and confirmation rules.
 
 2. Validate auth and tools without exposing secrets:
@@ -114,7 +114,7 @@ parallel-cli research status "$INPUT_ID" --json
 5. Resolve `Trading Proposals` before running external research:
    - Locate the `Trading Proposals` data source. If exact search fails, also try `Trade Proposals` and `Proposals`.
    - Resolve property IDs by exact name.
-   - Required `Trading Proposals` fields:
+   - Required `Trading Proposals` fields (Layer 1 + workflow):
      - `Proposal` title
      - `Ticker` rich_text
      - `Company Name` rich_text
@@ -126,36 +126,24 @@ parallel-cli research status "$INPUT_ID" --json
      - `Trade Type` select
      - `Time Horizon` select
      - `Rationale` rich_text
-     - `Entry Criteria` rich_text
-     - `Exit Criteria` rich_text
-     - `Key Invalidation Event` rich_text
-     - `Conviction Level` select
+     - `Invalidation` rich_text
+     - `Conviction` select
      - `Risk Bucket` select
      - `Assumptions` rich_text
-     - `Open Questions` rich_text
-     - `Monitoring Signals` rich_text
+     - `Watchpoints` rich_text
      - `Status` select
+     - `Pricing Status` select
      - `Proposed At` date
      - `Run` relation
      - `Idea` relation
-   - Optional but preferred `Trading Proposals` fields:
-     - `Schema Version`
-     - `Previous Interaction ID`
-     - `Core Thesis`
-     - `Key Drivers`
-     - `Key Risks`
-     - `Thesis Kill Criteria`
-     - `Fact Assumption Boundary`
-     - `Missing Information`
-     - `Uncertainty Notes`
-     - `Conviction Score`
-     - `Conviction Note`
-     - `Other Trade Type`
+   - Optional at import:
+     - `Instrument ID`
+     - `Intent`
      - `Review Notes`
    - Do not alter the Notion schema inside this skill unless separately confirmed.
 
 6. Build the follow-up prompt and schema:
-   - Use `data/prompt-followup-tradable-tickers.md` as the instruction source.
+   - Use `data/parallel/prompt-followup-tradable-tickers.md` as the instruction source.
    - Include the resolved `INTERACTION_ID`.
    - Default `focus_markets` to `HK`, `JP`, and `US`.
    - Default `analysis_timeframe` to `mixed`.
@@ -164,7 +152,7 @@ parallel-cli research status "$INPUT_ID" --json
    - Prepare the Task API JSON schema with:
 
 ```bash
-SCHEMA_JSON="$(jq 'del(."$schema", .title)' data/schema-tradable-tickers-output.json)"
+SCHEMA_JSON="$(jq 'del(."$schema", .title)' data/parallel/output-tradable-tickers.json)"
 ```
 
 7. Confirmation gate before external research:
@@ -173,7 +161,7 @@ SCHEMA_JSON="$(jq 'del(."$schema", .title)' data/schema-tradable-tickers-output.
      - resolved source idea/page
      - processor choice, default `core`
      - that `previous_interaction_id` will be sent to the Task API
-     - that `task_spec.output_schema` will use `data/schema-tradable-tickers-output.json`
+     - that `task_spec.output_schema` will use `data/parallel/output-tradable-tickers.json`
      - intended output filenames
      - that `ajv-cli` will validate the extracted `output.content` before Notion proposal imports
    - If `--yes-start-research` was supplied, record that the gate was auto-confirmed by flag and continue.
@@ -253,7 +241,7 @@ npx --yes ajv-cli validate \
   --spec=draft2020 \
   --all-errors \
   --errors=text \
-  -s data/schema-tradable-tickers-output.json \
+  -s data/parallel/output-tradable-tickers.json \
   -d "$FILENAME.payload.json"
 ```
 
@@ -311,8 +299,8 @@ npx --yes ajv-cli validate \
 15. Prepare `Trading Proposals` import plan:
    - Query `Trading Proposals` for rows where `Run` relation contains the newly created follow-up `Research Runs` page ID.
    - If existing rows are found for this run, do not blindly duplicate them. Report existing count/tickers and ask whether to skip, append only missing tickers, or stop.
-   - Default import mapping for each `ticker_opportunities[]` item:
-     - `Proposal` title: `<ticker> <trade_type> - follow-up tradable tickers`
+   - Default import mapping for each `ticker_opportunities[]` item (see `data/notion/research.md` JSON Import Mapping):
+     - `Proposal` title: `<ticker> <trade_type>`
      - `Ticker`: `ticker`
      - `Company Name`: `company_name`
      - `Asset Class`: `asset_class`
@@ -321,33 +309,20 @@ npx --yes ajv-cli validate \
      - `Currency`: `currency`
      - `Relationship To Research`: `relationship_to_research`
      - `Trade Type`: `trade_hypothesis.trade_type`
-     - `Other Trade Type`: `trade_hypothesis.other_trade_type`
      - `Time Horizon`: `trade_hypothesis.time_horizon`
-     - `Rationale`: `trade_hypothesis.rationale`
-     - `Entry Criteria`: bullet-joined `trade_hypothesis.entry_criteria`
-     - `Exit Criteria`: bullet-joined `trade_hypothesis.exit_criteria`
-     - `Key Invalidation Event`: `trade_hypothesis.key_invalidation_event`
-     - `Conviction Level`: `trade_hypothesis.conviction_level`
-     - `Conviction Score`: `trade_hypothesis.conviction_score`
-     - `Conviction Note`: `trade_hypothesis.conviction_note`
+     - `Rationale`: `trade_hypothesis.rationale`; append `trade_hypothesis.other_trade_type` when non-null
+     - `Invalidation`: `trade_hypothesis.key_invalidation_event` first, then bullet-joined `trade_hypothesis.exit_criteria`
+     - `Conviction`: `trade_hypothesis.conviction_level`
      - `Risk Bucket`: `trade_hypothesis.risk_bucket`
      - `Assumptions`: bullet-joined `assumptions`
-     - `Open Questions`: bullet-joined `open_questions`
-     - `Monitoring Signals`: bullet-joined `monitoring_signals`
-     - `Schema Version`: `schema_version`
-     - `Previous Interaction ID`: input/resolved previous `INTERACTION_ID`
-     - `Core Thesis`: `thesis_snapshot.core_thesis`
-     - `Key Drivers`: bullet-joined `thesis_snapshot.key_drivers`
-     - `Key Risks`: bullet-joined `thesis_snapshot.key_risks`
-     - `Thesis Kill Criteria`: bullet-joined `thesis_snapshot.thesis_kill_criteria`
-     - `Fact Assumption Boundary`: `output_quality.fact_assumption_boundary`
-     - `Missing Information`: bullet-joined `output_quality.missing_information`
-     - `Uncertainty Notes`: bullet-joined `output_quality.uncertainty_notes`
+     - `Watchpoints`: sectioned bullet-join of `trade_hypothesis.entry_criteria`, `monitoring_signals`, `open_questions`
      - `Status`: `Proposed`
+     - `Pricing Status`: `Not Started`
      - `Proposed At`: current UTC timestamp
      - `Run`: relation to the newly created follow-up `Research Runs` page
      - `Idea`: relation to the resolved `Research Ideas` page
-     - `Review Notes`: `Imported from ajv-cli-validated Parallel Task API schema-constrained output. Research framing only, not personalized investment advice.`
+     - `Review Notes`: `Imported from ajv-cli-validated Parallel Task API output. Research framing only, not personalized investment advice.`
+   - Do **not** import onto proposal rows: `schema_version`, `analysis_context.*`, `thesis_snapshot.*`, `output_quality.*`
    - Use Notion rich_text chunks below 2000 characters.
    - Validate that select values exist in the target schema before writing. If a select value is missing, stop and ask before changing schema or writing partial data.
 

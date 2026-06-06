@@ -20,8 +20,9 @@ These are technical/runtime defaults for tools, integrations, and workspace refe
 
 | Key | Value | Notes |
 | --- | --- | --- |
-| Neon project name | `ai-investment` | Preferred Neon project for portfolio schema work |
-| Portfolio schema proposal | `data/schema-portfolio-proposal.md` | Source of truth for schema details; confirm before applying changes |
+| Portfolio schema proposal | `data/notion/portfolio.md` | Source of truth for portfolio schema details; confirm before applying changes |
+| Research schema | `data/notion/research.md` | Canonical research system schema including two-layer Trading Proposals (Layer 1 + Layer 2 price plan, 30 properties) |
+| Notion portfolio databases | `Accounts`, `Trades`, `Cash Movements`, `Position Snapshots`, `Proposal Sizing` | Portfolio, execution history, and sizing |
 | Notion ideas database | `Research Ideas` | Idea lifecycle and scheduling control |
 | Notion runs database | `Research Runs` | Run-level execution log and audit trail |
 | Tooling priority | CLI > `curl` API > MCP | MCP is fallback unless explicitly requested |
@@ -63,6 +64,15 @@ For recurring opportunity scans, `Research Ideas` should use:
 - In `Research Runs`, link via `Idea` relation and use rollup for `Idea ID`.
 - Do not maintain duplicate manual ID fields when rollup can provide the same value.
 
+### Tradable Proposal Layers
+
+- **Layer 1:** Research follow-up imports qualitative fields into `Trading Proposals`.
+- **Layer 2:** Alpha Vantage last close populates `Last Price`; an external process sets `Entry Price`, `Stop Price`, `Target Price`, and `Pricing Status`.
+- Portfolio sizing and execution history are out of scope for the trading proposals schema and will be defined separately.
+- **Execution:** Manual only. No automated order placement.
+- Confirm before Notion structure changes on `Trading Proposals` or portfolio databases.
+- Canonical research schema (including Trading Proposals): `data/notion/research.md`.
+
 ## Tooling & Authentication
 
 - Prefer relevant project skills first when available.
@@ -70,7 +80,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - For Notion operations, prefer Notion REST API via `curl`.
 - For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for global indices plus Japan and US market data.
 - For deep research operations, prefer `parallel-cli`.
-- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `refresh-workspace`
+- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers-curl`, `refresh-proposal-quotes`, `refresh-workspace`
 - CLI: `parallel-cli`, `git`, `npx skills`
 - Direct API via `curl`: Notion API, Alpha Vantage API
 - MCP tools are secondary by default in this workspace.
@@ -105,10 +115,10 @@ For recurring opportunity scans, `Research Ideas` should use:
 
 - Keep workspace contents simple and centralized under `data/` unless explicitly approved otherwise.
 - Use `data/` only for sanitized examples, schemas, derived summaries, or pointers to approved external sources.
-- Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Neon.
-- Initial portfolio storage target is Neon/Postgres.
-- Treat `data/schema-portfolio-proposal.md` as the source of truth for schema details.
-- Do not apply Neon schema/database changes without first summarizing intended changes and receiving explicit confirmation.
+- Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Notion.
+- Initial portfolio storage target is Notion.
+- Treat `data/notion/portfolio.md` as the source of truth for portfolio schema details.
+- Do not apply Notion portfolio database structure changes without first summarizing intended changes and receiving explicit confirmation.
 
 ## Skills Policy
 
@@ -128,6 +138,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `expand-new-ideas`: use to transform eligible Notion `Research Ideas` from raw `Original Idea` entries into research-ready `Research Input` before execution.
 - `run-expanded-ideas-deep-research`: use to kick off Parallel deep research for eligible expanded ideas and prepare run metadata logging.
 - `poll-deep-research-runs`: use to poll in-flight Parallel research runs and update Notion with completion status, summaries, and result pointers.
-- `followup-tradable-tickers`: use to run a follow-up from a prior Parallel interaction, validate tradable ticker JSON, and prepare/import linked trading proposals after confirmation.
+- `followup-tradable-tickers-curl`: use to run a Parallel Task API follow-up from a prior interaction, validate tradable ticker JSON with `ajv-cli`, and prepare/import linked `Trading Proposals` after confirmation per `data/notion/research.md`.
+- `refresh-proposal-quotes`: use to fetch Alpha Vantage last daily close for `Trading Proposals` and update Notion `Last Price` and `Quote As Of` via curl (writes by default; use `--dry-run` to preview only).
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.
