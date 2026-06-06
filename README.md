@@ -2,7 +2,7 @@
 
 This repository is a Cursor workspace for personal investment research, planning, and assistant workflows.
 
-It is not a coding workspace. The assistant should avoid adding code, scripts, applications, notebooks, or software project scaffolding. If code is genuinely required by the user, the assistant must explain why, describe the files that would be created or changed, and ask for confirmation twice before proceeding.
+It is not a coding workspace. The assistant should avoid adding code, scripts, applications, notebooks, or software project scaffolding unless a workflow explicitly requires it (for example Pine Screener scripts under `data/tradingview/`). If other code is genuinely required, the assistant must explain why, describe the files that would be created or changed, and ask for confirmation twice before proceeding.
 
 ## Purpose
 
@@ -11,10 +11,11 @@ This workspace is for:
 - Investment research and analysis support
 - Research idea intake, scheduling, and execution tracking
 - Structured tradable ticker proposal research
+- TradingView watchlist export and Pine Screener price-plan workflows
 - Portfolio review support
 - Notion portfolio and trading history schema planning
 - Market and product research
-- Safe integration with external services through Cursor MCP
+- Safe integration with external services through CLI tools and direct API calls
 - Reusable assistant workflows through Agent Skills
 
 This workspace is not for:
@@ -28,7 +29,12 @@ This workspace is not for:
 
 ## Language And Scope
 
-Default communication language is English unless otherwise requested.
+Default communication language is Hong Kong Traditional Chinese unless otherwise requested.
+
+Weekend/weekday rhythm:
+
+- **Weekend (Research Mode):** generate ideas, run research, identify opportunities, and formulate plans.
+- **Weekday (Execution Mode):** prioritize execution, adjustments, and risk/trigger monitoring based on existing plans.
 
 Covered product types:
 
@@ -64,6 +70,7 @@ flowchart TD
     I[Follow-up Opportunity Scan]
     J[Structured Ticker Opportunities]
     K[Trading Proposals<br/>Layer 1 qualitative + Layer 2 price plan]
+    TV[TradingView Assets<br/>watchlist .txt + Pine Screener .pine]
   end
 
   subgraph PF[Portfolio Data Track]
@@ -78,9 +85,9 @@ flowchart TD
 
   A --> B --> C --> D --> E --> F --> G
 
-  G --> H --> I --> J --> K
+  G --> H --> I --> J --> K --> TV
 
-  K --> R[Human Review / Decision Support]
+  TV --> R[Human Review / Decision Support]
   R --> S[Watchlist / Monitoring / Possible Trade Framing]
   S -. only approved sanitized records .-> L
 
@@ -107,18 +114,59 @@ Trading proposals follow a two-layer model documented in [`data/notion/research.
 | Layer | What | Where |
 | --- | --- | --- |
 | Layer 1 | Qualitative hypothesis from research import | `Trading Proposals` |
-| Layer 2 | Alpha Vantage last close + external single entry/stop/target prices | `Trading Proposals` price-plan fields |
+| Layer 2 | Alpha Vantage last close + external entry/stop/target prices and derived reward/risk | `Trading Proposals` price-plan fields |
 
-Layer 2 uses Alpha Vantage for `Last Price` only; `Entry Price`, `Stop Price`, and `Target Price` come from an external process. Portfolio sizing and execution history are defined separately. No automated order placement.
+Handoffs:
+
+1. Research follow-up imports Layer 1 fields (`followup-tradable-tickers`).
+2. Alpha Vantage last close populates `Last Price` and `Quote As Of` (`refresh-proposal-quotes`).
+3. Pine Screener scripts, manual review, or other external processes populate `Entry Price`, `Stop Price`, `Target Price`, and derived `Reward Risk Ratio`, then set `Pricing Status = Ready`.
+
+Layer 2 uses Alpha Vantage for `Last Price` only. Portfolio sizing and execution history are defined separately. No automated order placement.
 
 ## Workspace Structure
 
 - `AGENTS.md`: Instructions for Cursor Agent behavior, safety boundaries, language preference, and workspace rules.
 - `data/`: Sanitized examples, schemas, derived summaries, or pointers to approved external data sources.
+  - `data/notion/`: Notion database specs (`research.md`, `portfolio.md`)
+  - `data/parallel/`: Parallel Task API output contracts and paired prompts
+  - `data/prompts/`: Reusable prompt assets
+  - `data/tradingview/`: TradingView watchlist exports and Pine Screener scripts
 - `.agents/skills/`: Project-level Agent Skills for repeatable assistant workflows.
 - `.cursor/rules/`: Cursor project rules for safety and research workflows.
 - `.cursor/mcp.json`: Project-level MCP configuration. It currently contains no live services or credentials.
 - `.cursorignore`: Excludes sensitive or bulky files from Cursor context and indexing.
+- `env.sample`: Non-secret template for local API keys and service names. Copy to `.env` locally.
+
+## Agent Skills
+
+Project skills live under `.agents/skills/`. Prefer skills and CLI tools over MCP unless explicitly requested.
+
+| Skill | Purpose |
+| --- | --- |
+| `alphavantage-curl` | Alpha Vantage quotes and time series via `curl` |
+| `notion-api` | Notion REST API operations |
+| `parallel-deep-research` | Parallel deep research runs |
+| `expand-new-ideas` | Expand `Research Ideas` from `Original Idea` to `Research Input` |
+| `run-expanded-ideas-deep-research` | Start deep research for eligible expanded ideas |
+| `poll-deep-research-runs` | Poll in-flight runs and sync summaries to Notion |
+| `followup-tradable-tickers` | Parallel Task follow-up, validate ticker JSON, import `Trading Proposals` |
+| `export-tv-watchlist` | Export proposals for one run to a TradingView watchlist `.txt` file |
+| `create-tv-pine-screener` | Author Pine Screener scripts for Layer 2 price fields |
+| `fastio-cli` | Fast.io cloud file operations and proposal session storage |
+| `refresh-proposal-quotes` | Refresh `Last Price` and `Quote As Of` on `Trading Proposals` |
+| `refresh-workspace` | Read-only workspace context refresh |
+
+Tooling priority: **CLI > direct API via `curl` > MCP** (fallback).
+
+## Authentication
+
+Copy `env.sample` to `.env` locally. Supported variables:
+
+- `ALPHAVANTAGE_API_KEY`, `NOTION_API_TOKEN`, `PARALLEL_API_KEY`
+- `FASTIO_API_KEY`, `FASTIO_WORKSPACE_NAME`
+
+Never commit `.env` or store secrets in tracked files.
 
 ## Data Policy
 
@@ -132,7 +180,7 @@ Before saving any data into the workspace, the assistant should summarize what w
 
 Portfolio and trading history live in Notion. The first version should stay small and avoid a separate instruments database.
 
-The saved schema is available at `data/notion/portfolio.md` for later reference before applying changes to Notion.
+The saved schema is available at `data/notion/portfolio.md` for later reference before applying changes to Notion. That document is **provisional**; the canonical `Trading Proposals` schema is in [`data/notion/research.md`](data/notion/research.md).
 
 Recommended starting databases:
 

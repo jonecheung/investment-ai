@@ -11,7 +11,8 @@ data/
 ├── README.md
 ├── notion/          # Notion database specs
 ├── parallel/        # Parallel API output contracts and paired prompts
-└── prompts/         # Other reusable prompt assets
+├── prompts/         # Other reusable prompt assets
+└── tradingview/     # TV watchlist exports + Pine Screener scripts for Layer 2 pricing
 ```
 
 | Folder | Purpose | Examples |
@@ -19,6 +20,7 @@ data/
 | `notion/` | Notion database structure only | `research.md`, `portfolio.md` |
 | `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md` |
 | `prompts/` | Reusable prompts for other workflows | `research-idea-brief.md` |
+| `tradingview/` | TradingView watchlist `.txt` exports and Pine Screener `.pine` scripts for `Trading Proposals` Layer 2 | `2026-06-06-trun_abc123.txt`, `supertrend-ema-atr-long.pine` |
 
 ## File Naming
 
