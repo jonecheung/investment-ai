@@ -120,7 +120,7 @@ Handoffs:
 
 1. Research follow-up imports Layer 1 fields (`followup-tradable-tickers`).
 2. Alpha Vantage last close populates `Last Price` and `Quote As Of` (`refresh-proposal-quotes`).
-3. Pine Screener scripts, manual review, or other external processes populate `Entry Price`, `Stop Price`, `Target Price`, and derived `Reward Risk Ratio`, then set `Pricing Status = Ready`.
+3. Pine Screener CSV exports from Fast.io populate `Entry Price`, `Stop Price`, `Target Price`, and derived `Reward Risk Ratio`, then set `Pricing Status = Ready` (`import-screener-pricing`; rows where `Pricing Status` is not `Ready`).
 
 Layer 2 uses Alpha Vantage for `Last Price` only. Portfolio sizing and execution history are defined separately. No automated order placement.
 
@@ -153,7 +153,8 @@ Project skills live under `.agents/skills/`. Prefer skills and CLI tools over MC
 | `followup-tradable-tickers` | Parallel Task follow-up, validate ticker JSON, import `Trading Proposals` |
 | `export-tv-watchlist` | Export watchlist locally and provision per-run Fast.io session with `watchlist.txt` |
 | `create-tv-pine-screener` | Author Pine Screener scripts for Layer 2 price fields |
-| `fastio-cli` | Fast.io file ops; per-run sessions store `watchlist.txt` and `screener-*.csv` |
+| `import-screener-pricing` | Import screener CSV Layer 2 fields from Fast.io into Notion |
+| `fastio-cli` | Fast.io file ops; per-run sessions store `watchlist.txt` and `screener*.csv` |
 | `refresh-proposal-quotes` | Refresh `Last Price` and `Quote As Of` on `Trading Proposals` |
 | `refresh-workspace` | Read-only workspace context refresh |
 

@@ -28,6 +28,9 @@ banking/
 *export*
 !.agents/skills/export-tv-watchlist/
 
+# TradingView per-run watchlist exports (local only; Pine scripts stay tracked)
+data/tradingview/*.txt
+
 # Sensitive or bulky data formats
 *.csv
 *.tsv

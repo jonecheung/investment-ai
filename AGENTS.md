@@ -82,7 +82,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - For Notion operations, prefer Notion REST API via `curl`.
 - For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for global indices plus Japan and US market data.
 - For deep research operations, prefer `parallel-cli`.
-- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `fastio-cli`, `refresh-proposal-quotes`, `refresh-workspace`
+- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `import-screener-pricing`, `fastio-cli`, `refresh-proposal-quotes`, `refresh-workspace`
 - CLI: `parallel-cli`, `fastio`, `git`, `npx skills`
 - Direct API via `curl`: Notion API, Alpha Vantage API, Parallel Task API, TradingView symbol search
 - MCP tools are secondary by default in this workspace.
@@ -143,7 +143,8 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `followup-tradable-tickers`: use to run a Parallel Task API follow-up from a prior interaction, validate tradable ticker JSON with `ajv-cli`, and prepare/import linked `Trading Proposals` after confirmation per `data/notion/research.md`.
 - `export-tv-watchlist`: use to export `Trading Proposals` for one `run_id` to a TradingView watchlist `.txt` file (`YYYY-MM-DD-<run_id>.txt`) with TV symbol resolution via `symbol_search/v3`, and provision the per-run Fast.io session `trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/` with `watchlist.txt` (read-only Notion; use `--no-fastio` for local file only).
 - `create-tv-pine-screener`: use to author Pine Script v5 indicators compatible with Pine Screener and `Trading Proposals` Layer 2 (`Entry Price`, `Stop Price`, `Target Price`, `Reward Risk Ratio`); saves to `data/tradingview/*.pine`.
-- `fastio-cli`: use for basic Fast.io cloud file operations (list, create folders, upload, download, search) and per-run Trading Proposals session storage (`trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/` with `watchlist.txt` and `screener-*.csv`); resolves workspace and folders by name (`FASTIO_WORKSPACE_NAME`).
+- `import-screener-pricing`: use to download Pine Screener `screener*.csv` files from a per-run Fast.io session and import Layer 2 price fields into Notion `Trading Proposals` for rows where `Pricing Status` is not `Ready` (writes by default; use `--dry-run` to preview only).
+- `fastio-cli`: use for basic Fast.io cloud file operations (list, create folders, upload, download, search) and per-run Trading Proposals session storage (`trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/` with `watchlist.txt` and `screener*.csv`); resolves workspace and folders by name (`FASTIO_WORKSPACE_NAME`).
 - `refresh-proposal-quotes`: use to fetch Alpha Vantage last daily close for `Trading Proposals` and update Notion `Last Price` and `Quote As Of` via curl (writes by default; use `--dry-run` to preview only).
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.

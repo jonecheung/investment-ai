@@ -20,7 +20,7 @@ data/
 | `notion/` | Notion database structure only | `research.md`, `portfolio.md` |
 | `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md` |
 | `prompts/` | Reusable prompts for other workflows | `research-idea-brief.md` |
-| `tradingview/` | TradingView watchlist `.txt` exports and Pine Screener `.pine` scripts for `Trading Proposals` Layer 2 | `2026-06-06-trun_abc123.txt`, `supertrend-ema-atr-long.pine` |
+| `tradingview/` | TradingView watchlist `.txt` exports (local/gitignored) and Pine Screener `.pine` scripts (tracked) | `2026-06-06-trun_abc123.txt`, `supertrend-ema-atr-long.pine` |
 
 ## File Naming
 
@@ -60,5 +60,6 @@ Do not store:
 - Full brokerage, bank, credit card, or retirement account statements
 - Raw CSV, PDF, Excel, or database exports from financial institutions
 - Tax forms or tax preparation files
+- TradingView watchlist `.txt` exports under `data/tradingview/` (gitignored local run outputs from `export-tv-watchlist`; use Fast.io session storage as the durable copy)
 
 If a workflow needs sensitive source data, keep it outside this workspace and explicitly approve the specific file or service access for that task.

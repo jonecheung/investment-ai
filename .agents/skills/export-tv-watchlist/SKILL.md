@@ -24,6 +24,7 @@ This skill is **read-only for Notion**. It writes one local watchlist file and, 
 - Notion API version: `2025-09-03`
 - Output directory: `data/tradingview/`
 - Output filename: `YYYY-MM-DD-<run_id>.txt` where `<run_id>` is the resolved run id verbatim (e.g. `trun_abc123`)
+- Local watchlist files are **gitignored** (`data/tradingview/*.txt`); do not commit them. Fast.io `watchlist.txt` is the durable per-run copy when Fast.io upload is enabled.
 - Watchlist sections: `###HK`, `###JP`, `###US`, `###OTHER` by proposal `Market`
 - No scanner / validator step after resolve
 - No Notion writes
@@ -251,7 +252,7 @@ fastio upload file --workspace "$WS_ID" \
      - page ID
    - list of `TV_ID` values written (or that would be written)
    - reminder: import `watchlist.txt` in TradingView via watchlist → Upload list (use the local file or download from Fast.io)
-   - reminder: after Pine Screener, upload any `screener-*.csv` to the same Fast.io session folder
+   - reminder: after Pine Screener, upload any `screener*.csv` to the same Fast.io session folder
    - reminder: unresolved rows need manual TV symbol review before re-export
 
 ## Example Invocations
