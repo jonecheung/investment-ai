@@ -20,11 +20,11 @@ These are technical/runtime defaults for tools, integrations, and workspace refe
 
 | Key | Value | Notes |
 | --- | --- | --- |
-| Portfolio schema proposal | `data/notion/portfolio.md` | Provisional portfolio schema; confirm before applying changes |
+| Portfolio schema | `data/notion/portfolio.md` | Single-portfolio planning schema (`Position Snapshots`, `Portfolio Impact`); confirm before applying changes |
 | Research schema | `data/notion/research.md` | Canonical research system schema including two-layer Trading Proposals (Layer 1 + Layer 2 price plan, 31 properties) |
 | TradingView assets | `data/tradingview/` | Watchlist `.txt` exports and Pine Screener `.pine` scripts for Layer 2 pricing |
 | Environment template | `env.sample` | Non-secret template for API keys and service names; copy to `.env` locally |
-| Notion portfolio databases | `Accounts`, `Trades`, `Cash Movements`, `Position Snapshots`, `Proposal Sizing` | Portfolio, execution history, and sizing |
+| Notion portfolio databases | `Position Snapshots`, `Portfolio Impact` | Daily portfolio state and hypothetical proposal impact (single portfolio; no trade ledger) |
 | Notion ideas database | `Research Ideas` | Idea lifecycle and scheduling control |
 | Notion runs database | `Research Runs` | Run-level execution log and audit trail |
 | Tooling priority | CLI > `curl` API > MCP | MCP is fallback unless explicitly requested |
@@ -70,7 +70,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 
 - **Layer 1:** Research follow-up imports qualitative fields into `Trading Proposals`.
 - **Layer 2:** Alpha Vantage last close populates `Last Price`; Pine Screener scripts, manual review, or other external processes set `Entry Price`, `Stop Price`, `Target Price`, derived `Reward Risk Ratio`, and `Pricing Status`.
-- Portfolio sizing and execution history are out of scope for the trading proposals schema and will be defined separately.
+- **Layer 3:** Portfolio impact analysis (`Portfolio Impact`) combines accepted proposals with daily snapshots; defined in `data/notion/portfolio.md`. No trade ledger, P&L, or execution history in this workspace.
 - **Execution:** Manual only. No automated order placement.
 - Confirm before Notion structure changes on `Trading Proposals` or portfolio databases.
 - Canonical research schema (including Trading Proposals): `data/notion/research.md`.
@@ -119,7 +119,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - Use `data/` only for sanitized examples, schemas, derived summaries, or pointers to approved external sources.
 - Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Notion.
 - Initial portfolio storage target is Notion.
-- Treat `data/notion/portfolio.md` as the provisional portfolio schema reference.
+- Treat `data/notion/portfolio.md` as the canonical portfolio schema reference (single portfolio; snapshot-based).
 - Do not apply Notion portfolio database structure changes without first summarizing intended changes and receiving explicit confirmation.
 
 ## Skills Policy

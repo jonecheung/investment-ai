@@ -12,8 +12,8 @@ This workspace is for:
 - Research idea intake, scheduling, and execution tracking
 - Structured tradable ticker proposal research
 - TradingView watchlist export and Pine Screener price-plan workflows
-- Portfolio review support
-- Notion portfolio and trading history schema planning
+- Portfolio review support (daily snapshots and proposal impact analysis)
+- Notion portfolio planning schema
 - Market and product research
 - Safe integration with external services through CLI tools and direct API calls
 - Reusable assistant workflows through Agent Skills
@@ -51,7 +51,7 @@ Covered markets:
 
 ## High-Level Data Flow
 
-The workspace separates research workflow data from portfolio and trading history data. Research outputs may support human review and monitoring, but they do not directly execute trades or move money.
+The workspace separates research workflow data from portfolio planning data. Research outputs may support human review and monitoring, but they do not directly execute trades, log fills, or move money.
 
 ```mermaid
 flowchart TD
@@ -75,12 +75,8 @@ flowchart TD
 
   subgraph PF[Portfolio Data Track]
     L[Approved Sanitized Portfolio Inputs]
-    M[Notion Portfolio]
-    N[Accounts]
-    O[Trades]
-    P[Cash Movements]
-    Q[Position Snapshots]
-    Sizing[Proposal Sizing]
+    Q[Position Snapshots<br/>daily state]
+    Impact[Portfolio Impact<br/>hypothetical change]
   end
 
   A --> B --> C --> D --> E --> F --> G
@@ -91,16 +87,9 @@ flowchart TD
   R --> S[Watchlist / Monitoring / Possible Trade Framing]
   S -. only approved sanitized records .-> L
 
-  L --> M
-  M --> N
-  M --> O
-  M --> P
-  M --> Q
-  M --> Sizing
-  N --> O
-  N --> P
-  N --> Q
-  Sizing --> O
+  L --> Q
+  K -->|"Accepted + Ready"| Impact
+  Q --> Impact
 
   Z[Safety Boundary<br/>Research only<br/>No trade execution or money movement<br/>No raw sensitive exports stored<br/>External writes require confirmation]
   Z --- R
@@ -122,7 +111,13 @@ Handoffs:
 2. Alpha Vantage last close populates `Last Price` and `Quote As Of` (`refresh-proposal-quotes`).
 3. Pine Screener CSV exports from Fast.io populate `Entry Price`, `Stop Price`, `Target Price`, and derived `Reward Risk Ratio`, then set `Pricing Status = Ready` (`import-screener-pricing`; rows where `Pricing Status` is not `Ready`).
 
-Layer 2 uses Alpha Vantage for `Last Price` only. Portfolio sizing and execution history are defined separately. No automated order placement.
+Layer 2 uses Alpha Vantage for `Last Price` only.
+
+| Layer | What | Where |
+| --- | --- | --- |
+| Layer 3 | Hypothetical portfolio change if a proposal is adopted | `Portfolio Impact` (see [`data/notion/portfolio.md`](data/notion/portfolio.md)) |
+
+Layer 3 inputs come from daily `Position Snapshots` (single portfolio; no trade ledger). No automated order placement or trade logging in this workspace.
 
 ## Workspace Structure
 
@@ -179,24 +174,24 @@ Before saving any data into the workspace, the assistant should summarize what w
 
 ## Notion Portfolio Schema Plan
 
-Portfolio and trading history live in Notion. The first version should stay small and avoid a separate instruments database.
+Portfolio planning lives in Notion. The schema targets a **single portfolio** with daily snapshot capture and hypothetical proposal impact analysis. It does not track trades, cash events, P&L, or execution history.
 
-The saved schema is available at `data/notion/portfolio.md` for later reference before applying changes to Notion. That document is **provisional**; the canonical `Trading Proposals` schema is in [`data/notion/research.md`](data/notion/research.md).
+The saved schema is at [`data/notion/portfolio.md`](data/notion/portfolio.md). The canonical `Trading Proposals` schema is in [`data/notion/research.md`](data/notion/research.md).
 
-Recommended starting databases:
+Databases:
 
-- `Accounts`: broker or exchange accounts, with a display name, provider, and base currency.
-- `Trades`: executed buys and sells, storing symbol, market, asset type, side, quantity, price, currency, fees, taxes, timestamps, source, and external import ID.
-- `Cash Movements`: deposits, withdrawals, dividends, interest, fees, taxes, and adjustments, with currency, amount, type, timestamps, source, and optional related trade.
-- `Position Snapshots`: periodic position snapshots for reconciliation against broker or API data, including quantity, average cost, market price, and market value.
-- `Proposal Sizing`: sized quantity and notional after combining an accepted trading proposal with portfolio state.
+- `Position Snapshots`: daily (or periodic) portfolio state — holdings and cash as of a `Snapshot Date`, with quantity, market price, and market value.
+- `Portfolio Impact`: hypothetical change if an accepted, price-ready proposal were adopted — quantity, weight, and risk at stop relative to the latest snapshot.
+
+Out of scope:
+
+- Multiple accounts, trade ledgers, cash movement ledgers, cost basis, and P&L accounting.
 
 Implementation notes:
 
 - Use Notion `number` for quantities and money values.
-- Use Notion `date` for trade and cash movement timestamps.
-- Use Notion relations for cross-database links such as trades to accounts, proposal sizing, and trading proposals.
-- Keep `source` and `external_id` fields for import deduplication.
+- Use Notion `date` for snapshot as-of dates.
+- Link `Portfolio Impact` to `Trading Proposals` via relation.
 - Do not store credentials, account numbers, raw exports, tax documents, or full statements.
 - Make Notion portfolio database structure changes only after explicit confirmation.
 
