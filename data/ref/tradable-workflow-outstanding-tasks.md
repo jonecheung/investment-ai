@@ -34,7 +34,7 @@ Documented split:
 - External process (out of repo) → `Entry Price`, `Stop Price`, `Target Price`, `Pricing Notes`, `Pricing Status = Ready`
 
 - [ ] Define human gate: `Status = Accepted` → `Pricing Status = Pending`
-- [ ] Build or script AV last-close fetch for accepted proposals (`alphavantage-curl` skill)
+- [x] Build `refresh-proposal-quotes` skill for AV last-close fetch (`alphavantage-curl` patterns)
 - [ ] Symbol normalization: `Ticker` → `Instrument ID` for AV lookups (HK/JP/US)
 - [ ] Document or implement external price-plan process
 - [ ] Staleness handling: large price move or manual review → `Pricing Status = Stale`
@@ -87,7 +87,7 @@ Apply documented schemas in Notion (requires explicit confirmation before writes
 ### Other
 
 - New prompts/JSON schemas for pricing runs
-- `refresh-proposal-quotes` skill (AV last-close automation)
+- ~~`refresh-proposal-quotes` skill (AV last-close automation)~~ — skill added at `.agents/skills/refresh-proposal-quotes/SKILL.md`
 - Automated staleness monitoring
 - Full broker CSV/API portfolio import
 - Instruments normalization database
