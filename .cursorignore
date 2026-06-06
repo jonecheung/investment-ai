@@ -20,6 +20,7 @@ banking/
 **/*w2*
 **/*k-1*
 **/*export*
+!.agents/skills/export-tv-watchlist/
 
 # Sensitive or bulky data formats
 *.csv

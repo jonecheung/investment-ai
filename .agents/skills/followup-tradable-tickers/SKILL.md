@@ -1,10 +1,10 @@
 ---
-name: followup-tradable-tickers-curl
+name: followup-tradable-tickers
 description: Run a Parallel Task API follow-up via curl with JSON schema constrained output, validate ticker JSON with ajv-cli, create a linked Research Runs row, and import validated opportunities into Trading Proposals after confirmation.
 disable-model-invocation: true
 ---
 
-# Follow-up Tradable Tickers Curl
+# Follow-up Tradable Tickers
 
 Run a follow-up research task against an existing Parallel `interaction_id` or `run_id`, generate structured tradable ticker proposals with Parallel Task API `task_spec.output_schema`, save local result files, validate output with `ajv-cli`, populate Notion `Research Runs`, and import validated rows into Notion `Trading Proposals`.
 

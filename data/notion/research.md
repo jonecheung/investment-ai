@@ -12,7 +12,7 @@ This document defines the database schema needed to reconstruct the Notion resea
   - Trading Proposals
 - Excluded:
   - Page IDs, database IDs, data source IDs, property IDs, URLs, commands, prompts, raw rows, and workspace-specific artifacts.
-- Trading Proposals follows a **two-layer model** (Layer 1 qualitative + Layer 2 price plan, 30 properties). Layer 1 import source: `data/parallel/output-tradable-tickers.json` (`ticker_opportunities[]` items).
+- Trading Proposals follows a **two-layer model** (Layer 1 qualitative + Layer 2 price plan, 31 properties). Layer 1 import source: `data/parallel/output-tradable-tickers.json` (`ticker_opportunities[]` items).
 
 ## Research Ideas
 
@@ -86,9 +86,9 @@ Handoffs:
 
 1. Research follow-up imports Layer 1 fields.
 2. Alpha Vantage last close populates `Last Price` and `Quote As Of`.
-3. An external process (out of repo scope) populates `Entry Price`, `Stop Price`, and `Target Price`, then sets `Pricing Status = Ready`.
+3. Pine Screener CSV import via `import-screener-pricing` populates `Entry Price`, `Stop Price`, `Target Price`, and derived `Reward Risk Ratio`, then sets `Pricing Status = Ready` for rows where `Pricing Status` is not already `Ready`.
 
-Layer 2 stores **single** entry, stop, and target prices only. Portfolio sizing and execution history are defined separately.
+Layer 2 stores **single** entry, stop, target prices, and one reward/risk ratio. Portfolio sizing and execution history are defined separately.
 
 ### Migration from v1 (35-field table)
 
@@ -139,7 +139,7 @@ These fields existed on the v1 `Trading Proposals` table. They are removed from 
 
 ### Target Schema
 
-**Property count:** 30 (21 Layer 1 + 1 workflow + 6 Layer 2 pricing + `Run` / `Idea` relations)
+**Property count:** 31 (21 Layer 1 + 1 workflow + 7 Layer 2 pricing + `Run` / `Idea` relations)
 
 #### Layer 1 — Qualitative
 
@@ -184,9 +184,33 @@ These fields existed on the v1 `Trading Proposals` table. They are removed from 
 | `Entry Price` | number | External process | Single planned entry price. |
 | `Stop Price` | number | External process | Hard invalidation price. |
 | `Target Price` | number | External process | Single take-profit price. |
+| `Reward Risk Ratio` | number | External process (derived) | Reward per unit divided by risk per unit. See **Reward Risk Ratio** below. |
 | `Pricing Notes` | rich_text | External process | Entry style, liquidity, catalyst, or zone context. |
 
-Reward/risk ratio and per-unit risk/reward are **not stored**. Compute from `Entry Price`, `Stop Price`, and `Target Price` when needed.
+Per-unit risk and per-unit reward are **not stored** separately. Use `Reward Risk Ratio` for review, filtering, and sorting.
+
+#### Reward Risk Ratio
+
+Definition: **reward per unit ÷ risk per unit** (not risk:reward inverted). Example: ratio `2.5` means 2.5 units of reward for 1 unit of risk (often described as “1:2.5”).
+
+Compute from `Trade Type`, `Entry Price`, `Stop Price`, and `Target Price`:
+
+| `Trade Type` | Risk per unit | Reward per unit | `Reward Risk Ratio` |
+| --- | --- | --- | --- |
+| `long` | `Entry Price − Stop Price` | `Target Price − Entry Price` | `reward ÷ risk` |
+| `short` | `Stop Price − Entry Price` | `Entry Price − Target Price` | `reward ÷ risk` |
+| `other` | n/a | n/a | leave empty unless user overrides in `Pricing Notes` |
+
+Validation (external process should enforce before `Pricing Status = Ready`):
+
+- Denominator must be **> 0**; otherwise leave `Reward Risk Ratio` empty and prefer `Pricing Status = Failed`.
+- For `long`, expect `Stop Price < Entry Price < Target Price`.
+- For `short`, expect `Target Price < Entry Price < Stop Price`.
+- Store as a plain number (Notion `number`); two decimal places is typical.
+
+Population rule: the external process **must derive** `Reward Risk Ratio` from the three prices on every price-plan write. If Pine Script also outputs a ratio, the importer should recompute from prices and treat that as source of truth (optionally warn when Pine value diverges beyond a small tolerance).
+
+Recompute when `Entry Price`, `Stop Price`, or `Target Price` changes. A large move against the plan may set `Pricing Status = Stale`; refresh prices and ratio together.
 
 #### Trading Proposals Relations
 
@@ -215,7 +239,7 @@ Keep human decision workflow (`Status`) separate from Layer 2 readiness (`Pricin
 | Field group | Source | Tool / process |
 | --- | --- | --- |
 | `Last Price`, `Quote As Of` | Alpha Vantage last close | `alphavantage-curl` skill |
-| `Entry Price`, `Stop Price`, `Target Price`, `Pricing Notes` | External process | Out of repo scope; sets `Pricing Status` |
+| `Entry Price`, `Stop Price`, `Target Price`, `Reward Risk Ratio`, `Pricing Notes` | Pine Screener CSV via Fast.io | `import-screener-pricing` skill; derives ratio from prices; sets `Pricing Status = Ready` when current status is not `Ready` |
 
 Layer 2 is **not** imported from `data/parallel/output-tradable-tickers.json`.
 
@@ -276,7 +300,7 @@ If `ticker_opportunities` is empty, create no proposal rows. Record gaps through
 10. Remove obsolete v1 properties listed in **Removed** sections above, if present.
 11. Add or rename Layer 1 qualitative properties listed above.
 12. Add workflow properties: `Instrument ID`, `Intent`, `Pricing Status`.
-13. Add Layer 2 price-plan properties listed above.
+13. Add Layer 2 price-plan properties listed above, including `Reward Risk Ratio`.
 14. Configure all select options exactly as listed.
 15. Confirm `Trading Proposals.Run` relation to `Research Runs`.
 16. Confirm `Trading Proposals.Idea` relation to `Research Ideas`.

@@ -1,0 +1,60 @@
+//@version=5
+indicator("Darvas Box Breakdown Short Screener", overlay=true)
+
+// Pine Screener-compatible short setup for medium-term daily charts (1-3 months).
+// Screener can only display/filter plot() outputs, so all Notion-facing values are plots.
+boxLookback = input.int(20, "Box Lookback Bars", minval=5)
+emaLength = input.int(200, "Trend EMA Length", minval=1)
+volumeLength = input.int(20, "Volume SMA Length", minval=1)
+volumeMultiplier = input.float(1.5, "Volume Confirmation Multiplier", minval=0.1, step=0.1)
+requireVolumeConfirmation = input.bool(true, "Require Volume Confirmation")
+requireCloseBelowEma = input.bool(true, "Require Close Below EMA")
+atrLength = input.int(14, "ATR Length", minval=1)
+stopAtrBuffer = input.float(0.5, "Stop ATR Buffer Above Box Top", minval=0.0, step=0.1)
+fallbackStopAtrMultiplier = input.float(2.5, "Fallback Stop ATR Multiplier", minval=0.1, step=0.1)
+rewardRiskTarget = input.float(2.5, "Reward Risk Target", minval=0.1, step=0.1)
+
+ema = ta.ema(close, emaLength)
+atr = ta.atr(atrLength)
+volumeSma = ta.sma(volume, volumeLength)
+
+// Use completed prior bars for the box so the current candle can break it.
+boxTop = ta.highest(high[1], boxLookback)
+boxBottom = ta.lowest(low[1], boxLookback)
+boxHeight = boxTop - boxBottom
+
+trendOk = not requireCloseBelowEma or close < ema
+volumeConfirmed = not requireVolumeConfirmation or (not na(volume) and not na(volumeSma) and volume > volumeSma * volumeMultiplier)
+breakdown = not na(boxBottom) and close < boxBottom
+
+boxStop = boxTop + stopAtrBuffer * atr
+fallbackStop = close + fallbackStopAtrMultiplier * atr
+candidateStop = not na(boxStop) and boxStop > close ? boxStop : fallbackStop
+risk = candidateStop - close
+
+setupActive = trendOk and volumeConfirmed and breakdown and risk > 0
+newShortSetup = setupActive and not setupActive[1]
+
+entryPrice = setupActive ? close : na
+stopPrice = setupActive ? candidateStop : na
+targetPrice = setupActive ? close - rewardRiskTarget * risk : na
+rewardRiskRatio = setupActive ? rewardRiskTarget : na
+
+// Keep these first: Pine Screener automatically adds the first ten plots as columns/filters.
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.red, 0))
+plot(newShortSetup ? 1 : 0, "New Setup", color=color.new(color.maroon, 0))
+plot(entryPrice, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(stopPrice, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(targetPrice, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(breakdown ? 1 : 0, "Box Breakdown", color=color.new(color.red, 0))
+plot(volumeConfirmed ? 1 : 0, "Volume Confirmed", color=color.new(color.orange, 0))
+plot(close < ema ? 1 : 0, "Close Below EMA", color=color.new(color.teal, 0))
+plot(boxHeight, "Box Height", color=color.new(color.gray, 0))
+
+plot(boxTop, "Box Top", color=color.new(color.red, 50))
+plot(boxBottom, "Box Bottom", color=color.new(color.green, 50))
+plot(ema, "Trend EMA", color=color.orange)
+
+plotshape(newShortSetup, "New Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="Short")
+alertcondition(newShortSetup, "New Short Setup", "New short box breakdown setup generated.")

@@ -14,12 +14,12 @@ Refresh your working understanding of this workspace in read-only mode.
    - `AGENTS.md`
 
 2. Refresh `data/` context:
-   - List files under `data/` and its subfolders: `notion/` (Notion DB specs), `parallel/` (Parallel API contracts and paired prompts), `prompts/` (other reusable prompts).
+   - List files under `data/` and its subfolders: `notion/` (Notion DB specs), `parallel/` (Parallel API contracts and paired prompts), `prompts/` (other reusable prompts), `tradingview/` (TV watchlist exports and Pine Screener scripts).
    - Read relevant non-sensitive text, Markdown, and schema files needed to understand current workspace data structures and references.
    - Do not read raw financial exports, statements, tax documents, account documents, or bulky/binary files unless the user explicitly asks.
 
 3. Refresh available project skills:
-   - List `.agents/skills/*/SKILL.md`.
+   - List `.agents/skills/*/SKILL.md` (including `fastio-cli` for Fast.io session storage).
    - Read each `SKILL.md` summary/frontmatter.
    - Note which skills are available and when they should be used.
 

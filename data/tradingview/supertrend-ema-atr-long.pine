@@ -1,0 +1,46 @@
+//@version=5
+indicator("Supertrend EMA ATR Long Screener", overlay=true)
+
+// Pine Screener-compatible long setup for medium-term daily charts (1-3 months).
+// Screener can only display/filter plot() outputs, so all Notion-facing values are plots.
+emaLength = input.int(200, "Trend EMA Length", minval=1)
+supertrendFactor = input.float(3.0, "Supertrend Factor", minval=0.1, step=0.1)
+supertrendAtrLength = input.int(10, "Supertrend ATR Length", minval=1)
+atrLength = input.int(14, "Risk ATR Length", minval=1)
+stopAtrMultiplier = input.float(2.5, "Fallback Stop ATR Multiplier", minval=0.1, step=0.1)
+rewardRiskTarget = input.float(2.5, "Reward Risk Target", minval=0.1, step=0.1)
+useSupertrendStop = input.bool(true, "Use Supertrend As Stop When Valid")
+requireCloseAboveEma = input.bool(true, "Require Close Above EMA")
+
+ema = ta.ema(close, emaLength)
+[supertrendLine, supertrendDirection] = ta.supertrend(supertrendFactor, supertrendAtrLength)
+atr = ta.atr(atrLength)
+
+trendOk = not requireCloseAboveEma or close > ema
+supertrendBullish = supertrendDirection < 0
+atrStop = close - stopAtrMultiplier * atr
+supertrendStopValid = useSupertrendStop and not na(supertrendLine) and supertrendLine < close
+candidateStop = supertrendStopValid ? supertrendLine : atrStop
+risk = close - candidateStop
+setupActive = trendOk and supertrendBullish and risk > 0
+newLongSetup = setupActive and not setupActive[1]
+
+entryPrice = setupActive ? close : na
+stopPrice = setupActive ? candidateStop : na
+targetPrice = setupActive ? close + rewardRiskTarget * risk : na
+rewardRiskRatio = setupActive ? rewardRiskTarget : na
+
+// Keep these first: Pine Screener automatically adds the first ten plots as columns/filters.
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newLongSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(entryPrice, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(stopPrice, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(targetPrice, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(close > ema ? 1 : 0, "Close Above EMA", color=color.new(color.orange, 0))
+plot(supertrendBullish ? 1 : 0, "Supertrend Bullish", color=color.new(color.teal, 0))
+plot(ema, "Trend EMA", color=color.orange)
+plot(supertrendLine, "Supertrend", color=supertrendBullish ? color.green : color.red)
+
+plotshape(newLongSetup, "New Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="Long")
+alertcondition(newLongSetup, "New Long Setup", "New long setup generated.")
