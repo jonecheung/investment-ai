@@ -103,15 +103,14 @@ flowchart TD
 
 ## Tradable Proposal Layers
 
-Trading proposals follow a three-layer model documented in [`data/schema-notion-trading-proposals-simple.md`](data/schema-notion-trading-proposals-simple.md):
+Trading proposals follow a two-layer model documented in [`data/notion/research.md`](data/notion/research.md) (Trading Proposals section):
 
 | Layer | What | Where |
 | --- | --- | --- |
 | Layer 1 | Qualitative hypothesis from research import | `Trading Proposals` |
-| Layer 2 | Alpha Vantage last close + external entry/stop/target pricing | `Trading Proposals` pricing fields |
-| Layer 3 | Portfolio merge → quantity and notional | `Proposal Sizing` (see [`data/schema-notion-portfolio.md`](data/schema-notion-portfolio.md)) |
+| Layer 2 | Alpha Vantage last close + external single entry/stop/target prices | `Trading Proposals` price-plan fields |
 
-Layer 2 uses Alpha Vantage for `Last Price` only; entry, stop, and target levels come from an external process. Execution remains manual via `Trades`. No automated order placement.
+Layer 2 uses Alpha Vantage for `Last Price` only; `Entry Price`, `Stop Price`, and `Target Price` come from an external process. Portfolio sizing and execution history are defined separately. No automated order placement.
 
 ## Workspace Structure
 
@@ -134,7 +133,7 @@ Before saving any data into the workspace, the assistant should summarize what w
 
 Portfolio and trading history live in Notion. The first version should stay small and avoid a separate instruments database.
 
-The saved schema is available at `data/schema-notion-portfolio.md` for later reference before applying changes to Notion.
+The saved schema is available at `data/notion/portfolio.md` for later reference before applying changes to Notion.
 
 Recommended starting databases:
 

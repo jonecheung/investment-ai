@@ -2,24 +2,38 @@
 
 Use this directory only for sanitized examples, schemas, derived summaries, or pointers to approved external data sources.
 
-## File Naming Convention
+## Layout
 
-Use lowercase, kebab-case filenames with a type prefix to distinguish file intent:
+Organize files by how they are used:
 
-- `schema-...` for schema proposals and data model specs
-- `prompt-...` for reusable system/user prompt assets
-- `template-...` for reusable fill-in templates
-- `snapshot-...` for point-in-time derived summaries/exports
-- `ref-...` for reference notes and source pointers
+```
+data/
+├── README.md
+├── notion/          # Notion database specs
+├── parallel/        # Parallel API output contracts and paired prompts
+├── prompts/         # Other reusable prompt assets
+└── ref/             # Workflow handoff and reference notes
+```
 
-Recommended pattern:
+| Folder | Purpose | Examples |
+| --- | --- | --- |
+| `notion/` | Notion database structure only | `research.md`, `portfolio.md` |
+| `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md` |
+| `prompts/` | Reusable prompts for other workflows | `research-idea-brief.md` |
+| `ref/` | Non-schema reference and outstanding-task notes | `tradable-workflow-outstanding-tasks.md` |
 
-- `type-topic-purpose.md`
+## File Naming
+
+Use lowercase, kebab-case filenames **without** redundant type prefixes inside each folder:
+
+- `notion/research.md` — not `schema-notion-research.md`
+- `parallel/output-tradable-tickers.json` — Parallel output contract, not a Notion schema
+- `prompts/research-idea-brief.md`
+- `ref/tradable-workflow-outstanding-tasks.md`
 
 Guidelines:
 
-- Keep prefixes lowercase (do not use uppercase prefixes)
-- Use concise, descriptive names
+- Keep filenames concise and descriptive
 - Prefer `.md` for text documentation and prompt assets
 - Do not include version numbers in filenames; use git history to track revisions
 
@@ -38,7 +52,7 @@ Use a consistent section order for reusable prompt files:
 9. `## Missing Context Handling`
 10. `## Examples` when useful
 
-Keep prompt files focused on instructions. If an output contract is large or machine-validated, store it in a separate `schema-...json` file and reference it from the prompt.
+Keep prompt files focused on instructions. Store large Parallel output contracts in `parallel/` as `.json` and reference them from the paired prompt.
 
 Do not store:
 

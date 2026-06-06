@@ -44,7 +44,7 @@ For each ticker:
 
 Return JSON only.
 
-The output must conform to `data/schema-tradable-tickers-output.json`.
+The output must conform to `data/parallel/output-tradable-tickers.json`.
 
 If no credible ticker opportunities are found, return:
 

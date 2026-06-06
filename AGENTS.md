@@ -20,8 +20,8 @@ These are technical/runtime defaults for tools, integrations, and workspace refe
 
 | Key | Value | Notes |
 | --- | --- | --- |
-| Portfolio schema proposal | `data/schema-notion-portfolio.md` | Source of truth for portfolio schema details; confirm before applying changes |
-| Trading proposals schema | `data/schema-notion-trading-proposals-simple.md` | Canonical Trading Proposals schema including Layer 2 pricing fields |
+| Portfolio schema proposal | `data/notion/portfolio.md` | Source of truth for portfolio schema details; confirm before applying changes |
+| Research schema | `data/notion/research.md` | Canonical research system schema including two-layer Trading Proposals (Layer 1 + Layer 2 price plan, 30 properties) |
 | Notion portfolio databases | `Accounts`, `Trades`, `Cash Movements`, `Position Snapshots`, `Proposal Sizing` | Portfolio, execution history, and sizing |
 | Notion ideas database | `Research Ideas` | Idea lifecycle and scheduling control |
 | Notion runs database | `Research Runs` | Run-level execution log and audit trail |
@@ -67,11 +67,11 @@ For recurring opportunity scans, `Research Ideas` should use:
 ### Tradable Proposal Layers
 
 - **Layer 1:** Research follow-up imports qualitative fields into `Trading Proposals`.
-- **Layer 2:** Alpha Vantage last close populates `Last Price`; an external process sets entry/stop/target levels and `Pricing Status`.
-- **Layer 3:** Portfolio sizing creates `Proposal Sizing` rows after Layer 2 preconditions are met.
-- **Execution:** Manual only via `Trades` in Notion. No automated order placement.
+- **Layer 2:** Alpha Vantage last close populates `Last Price`; an external process sets `Entry Price`, `Stop Price`, `Target Price`, and `Pricing Status`.
+- Portfolio sizing and execution history are out of scope for the trading proposals schema and will be defined separately.
+- **Execution:** Manual only. No automated order placement.
 - Confirm before Notion structure changes on `Trading Proposals` or portfolio databases.
-- Canonical schemas: `data/schema-notion-trading-proposals-simple.md`, `data/schema-notion-portfolio.md`.
+- Canonical research schema (including Trading Proposals): `data/notion/research.md`.
 
 ## Tooling & Authentication
 
@@ -117,7 +117,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - Use `data/` only for sanitized examples, schemas, derived summaries, or pointers to approved external sources.
 - Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Notion.
 - Initial portfolio storage target is Notion.
-- Treat `data/schema-notion-portfolio.md` as the source of truth for portfolio schema details.
+- Treat `data/notion/portfolio.md` as the source of truth for portfolio schema details.
 - Do not apply Notion portfolio database structure changes without first summarizing intended changes and receiving explicit confirmation.
 
 ## Skills Policy

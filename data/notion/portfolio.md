@@ -2,12 +2,13 @@
 
 Snapshot date: 2026-06-06
 
+> **Status notice:** This document is **provisional**. Portfolio sizing and execution schemas are deferred pending a separate redesign. Cross-references to trading proposal price fields may be stale; the canonical Trading Proposals schema is in [`data/notion/research.md`](research.md) (two-layer model, single `Entry Price` / `Target Price`).
+
 This document defines the Notion database schema needed to reconstruct the portfolio and trading history system without copying any data. It includes database names, property names, property types, select options, and relation setup only.
 
-Related research schemas:
+Related research schema:
 
-- `data/schema-notion-research.md`
-- `data/schema-notion-trading-proposals-simple.md`
+- `data/notion/research.md` (Trading Proposals section)
 
 ## Scope
 
@@ -173,7 +174,7 @@ Purpose: Layer 3 portfolio sizing output. Combines an accepted, price-enriched t
 
 ## Cross-Database Flow
 
-Canonical proposal schema including Layer 2 pricing fields: `data/schema-notion-trading-proposals-simple.md`.
+Canonical proposal schema including Layer 2 pricing fields: `data/notion/research.md` (Trading Proposals section).
 
 1. Research outputs create or update `Trading Proposals` (Layer 1 qualitative fields).
 2. Alpha Vantage last close updates `Last Price` and `Quote As Of` on the proposal.
