@@ -65,6 +65,10 @@ Purpose: execution log and audit trail for research runs. Each row represents on
 
 ## Trading Proposals
 
+> **Canonical schema notice:** The property table below is **historical** (35-field v1 from 2026-05-03). Do not use this section for new reconstruction work.
+>
+> Canonical target: [`data/schema-notion-trading-proposals-simple.md`](schema-notion-trading-proposals-simple.md) — includes Layer 1 qualitative fields, Layer 2 pricing geometry, and workflow status fields.
+
 Purpose: structured, reviewable trade hypotheses derived from research outputs. Each row represents a proposal or watchlist candidate for further user review, not an execution instruction.
 
 | Property | Type | Notes |

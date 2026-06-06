@@ -20,8 +20,9 @@ These are technical/runtime defaults for tools, integrations, and workspace refe
 
 | Key | Value | Notes |
 | --- | --- | --- |
-| Neon project name | `ai-investment` | Preferred Neon project for portfolio schema work |
-| Portfolio schema proposal | `data/schema-portfolio-proposal.md` | Source of truth for schema details; confirm before applying changes |
+| Portfolio schema proposal | `data/schema-notion-portfolio.md` | Source of truth for portfolio schema details; confirm before applying changes |
+| Trading proposals schema | `data/schema-notion-trading-proposals-simple.md` | Canonical Trading Proposals schema including Layer 2 pricing fields |
+| Notion portfolio databases | `Accounts`, `Trades`, `Cash Movements`, `Position Snapshots`, `Proposal Sizing` | Portfolio, execution history, and sizing |
 | Notion ideas database | `Research Ideas` | Idea lifecycle and scheduling control |
 | Notion runs database | `Research Runs` | Run-level execution log and audit trail |
 | Tooling priority | CLI > `curl` API > MCP | MCP is fallback unless explicitly requested |
@@ -62,6 +63,15 @@ For recurring opportunity scans, `Research Ideas` should use:
 - In `Research Ideas`, keep `Idea ID` as an auto-generated stable identifier.
 - In `Research Runs`, link via `Idea` relation and use rollup for `Idea ID`.
 - Do not maintain duplicate manual ID fields when rollup can provide the same value.
+
+### Tradable Proposal Layers
+
+- **Layer 1:** Research follow-up imports qualitative fields into `Trading Proposals`.
+- **Layer 2:** Alpha Vantage last close populates `Last Price`; an external process sets entry/stop/target levels and `Pricing Status`.
+- **Layer 3:** Portfolio sizing creates `Proposal Sizing` rows after Layer 2 preconditions are met.
+- **Execution:** Manual only via `Trades` in Notion. No automated order placement.
+- Confirm before Notion structure changes on `Trading Proposals` or portfolio databases.
+- Canonical schemas: `data/schema-notion-trading-proposals-simple.md`, `data/schema-notion-portfolio.md`.
 
 ## Tooling & Authentication
 
@@ -105,10 +115,10 @@ For recurring opportunity scans, `Research Ideas` should use:
 
 - Keep workspace contents simple and centralized under `data/` unless explicitly approved otherwise.
 - Use `data/` only for sanitized examples, schemas, derived summaries, or pointers to approved external sources.
-- Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Neon.
-- Initial portfolio storage target is Neon/Postgres.
-- Treat `data/schema-portfolio-proposal.md` as the source of truth for schema details.
-- Do not apply Neon schema/database changes without first summarizing intended changes and receiving explicit confirmation.
+- Never store credentials, API keys, access tokens, account numbers, SSNs, raw brokerage exports, statements, or tax files in this workspace or Notion.
+- Initial portfolio storage target is Notion.
+- Treat `data/schema-notion-portfolio.md` as the source of truth for portfolio schema details.
+- Do not apply Notion portfolio database structure changes without first summarizing intended changes and receiving explicit confirmation.
 
 ## Skills Policy
 
