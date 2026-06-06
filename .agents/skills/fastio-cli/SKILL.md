@@ -52,11 +52,19 @@ Do not store workspace or folder node IDs in `.env`. Resolve at runtime from `FA
 1. **Workspace ID** — match `FASTIO_WORKSPACE_NAME` in `workspace list`
 2. **Folder ID** — `files list` in parent, match child by `name` where `type == folder`
 
-Session path under workspace:
+Session path under workspace (one folder per research run):
 
 ```text
-trading-proposals/sessions/<YYYY-MM-DD>-<run_id>-<script-slug>/
+trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/
 ```
+
+Files inside a session folder:
+
+| File | Rule |
+| --- | --- |
+| `watchlist.txt` | One watchlist per run |
+| `screener-*.csv` | Zero or more screener exports; filename must start with `screener-` and end with `.csv`; script name is not required |
+| `manifest.json` | Session metadata and file inventory |
 
 `trading-proposals` and `sessions` are fixed folder names in this workflow (not env vars). Create them if absent.
 
@@ -117,7 +125,7 @@ fastio files list --workspace "$WS_ID" --folder "$FOLDER_ID" --format json
 ```bash
 fastio files create-folder --workspace "$WS_ID" \
   --parent "$SESSIONS_ID" \
-  "2026-06-06-trun_abc123-supertrend-ema-atr-long" \
+  "2026-06-06-trun_abc123" \
   --format json
 ```
 
@@ -153,7 +161,7 @@ fastio download folder --workspace "$WS_ID" "<folder_node_id>" \
 
 ```bash
 fastio files info --workspace "$WS_ID" "<node_id>" --format json
-fastio files search --workspace "$WS_ID" "screener.csv" --format json
+fastio files search --workspace "$WS_ID" "screener-" --format json
 ```
 
 ### Rename / delete
@@ -167,29 +175,34 @@ fastio files delete --workspace "$WS_ID" "<node_id>" --format json
 
 ## Trading Proposals session workflow
 
-1. Resolve workspace from `FASTIO_WORKSPACE_NAME`.
-2. Resolve or create `trading-proposals/sessions/` by name.
-3. Create session folder: `YYYY-MM-DD-<run_id>-<script-slug>`.
-4. Upload `manifest.json` (`status: pending_review`), then `watchlist.txt`.
-5. After Pine Screener export, upload `screener.csv`; update manifest.
+1. `export-tv-watchlist` creates the per-run session folder and uploads `watchlist.txt` + `manifest.json` by default.
+2. Import `watchlist.txt` into TradingView and run Pine Screener.
+3. Upload one or more `screener-*.csv` files to the **same** session folder (`trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/`).
+4. Update `manifest.json` `files.screeners` with the uploaded filenames, or list the session folder and collect all `screener-*.csv` names.
+5. After Layer 2 review, advance manifest `status` as needed.
+
+For manual Fast.io operations (screener upload, download, search), resolve workspace from `FASTIO_WORKSPACE_NAME`, then resolve or create `trading-proposals/sessions/` and the target `YYYY-MM-DD-<run_id>` session folder by name.
 
 ### manifest.json minimum fields
 
 ```json
 {
-  "session_id": "2026-06-06-trun_abc123-supertrend-ema-atr-long",
+  "session_id": "2026-06-06-trun_abc123",
   "run_id": "trun_abc123",
-  "pine_script": "supertrend-ema-atr-long.pine",
-  "trade_type": "long",
-  "screener_timeframe": "1D",
-  "filter": { "Setup Active": 1 },
   "created_at": "2026-06-06",
-  "status": "pending_review",
-  "files": { "watchlist": "watchlist.txt", "screener": "screener.csv" }
+  "status": "watchlist_exported",
+  "files": {
+    "watchlist": "watchlist.txt",
+    "screeners": ["screener-export.csv", "screener-2.csv"]
+  },
+  "local_source": "data/tradingview/2026-06-06-trun_abc123.txt"
 }
 ```
 
-Status: `pending_review` → `approved` → `imported` → `archived`.
+- `files.screeners` lists every `screener-*.csv` in the session; filenames need not include a Pine script name.
+- Optional review metadata (`trade_type`, `screener_timeframe`, `filter`) may be added manually; not required by the session layout.
+
+Status progression: `watchlist_exported` → `pending_review` → `approved` → `imported` → `archived`.
 
 ## Safety
 
@@ -207,8 +220,8 @@ Status: `pending_review` → `approved` → `imported` → `archived`.
 
 ## Related skills
 
-- `export-tv-watchlist` — `watchlist.txt`
-- `create-tv-pine-screener` — Pine Screener scripts
+- `export-tv-watchlist` — provisions per-run session folder and uploads `watchlist.txt` by default
+- `create-tv-pine-screener` — Pine Screener scripts; screener CSVs upload to the same run session as `screener-*.csv`
 - `refresh-proposal-quotes` — Notion `Last Price` only
 
 ## Reference

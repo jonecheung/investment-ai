@@ -151,9 +151,9 @@ Project skills live under `.agents/skills/`. Prefer skills and CLI tools over MC
 | `run-expanded-ideas-deep-research` | Start deep research for eligible expanded ideas |
 | `poll-deep-research-runs` | Poll in-flight runs and sync summaries to Notion |
 | `followup-tradable-tickers` | Parallel Task follow-up, validate ticker JSON, import `Trading Proposals` |
-| `export-tv-watchlist` | Export proposals for one run to a TradingView watchlist `.txt` file |
+| `export-tv-watchlist` | Export watchlist locally and provision per-run Fast.io session with `watchlist.txt` |
 | `create-tv-pine-screener` | Author Pine Screener scripts for Layer 2 price fields |
-| `fastio-cli` | Fast.io cloud file operations and proposal session storage |
+| `fastio-cli` | Fast.io file ops; per-run sessions store `watchlist.txt` and `screener-*.csv` |
 | `refresh-proposal-quotes` | Refresh `Last Price` and `Quote As Of` on `Trading Proposals` |
 | `refresh-workspace` | Read-only workspace context refresh |
 

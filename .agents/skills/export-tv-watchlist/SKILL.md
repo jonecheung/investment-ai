@@ -1,6 +1,6 @@
 ---
 name: export-tv-watchlist
-description: Export Trading Proposals for one Research Run to a TradingView watchlist .txt file. Resolves tickers to EXCHANGE:SYMBOL via TradingView symbol_search/v3. Use when exporting proposals to TV watchlist or generating YYYY-MM-DD-runid.txt files.
+description: Export Trading Proposals for one Research Run to a TradingView watchlist .txt file, provision a per-run Fast.io session folder, and upload watchlist.txt. Resolves tickers to EXCHANGE:SYMBOL via TradingView symbol_search/v3. Use when exporting proposals to TV watchlist or generating YYYY-MM-DD-runid.txt files.
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Export all `Trading Proposals` linked to one `Research Runs` row into a TradingView watchlist `.txt` file.
 
-This skill is **read-only for Notion** and writes **one local file** only. It always resolves TV symbols from proposal fields via TradingView `symbol_search/v3`; it does not read or trust any pre-existing TV symbol on proposal rows.
+This skill is **read-only for Notion**. It writes one local watchlist file and, by default, provisions a per-run Fast.io session folder with `watchlist.txt` and `manifest.json`. It always resolves TV symbols from proposal fields via TradingView `symbol_search/v3`; it does not read or trust any pre-existing TV symbol on proposal rows.
 
 ## Fixed Defaults
 
@@ -27,6 +27,9 @@ This skill is **read-only for Notion** and writes **one local file** only. It al
 - Watchlist sections: `###HK`, `###JP`, `###US`, `###OTHER` by proposal `Market`
 - No scanner / validator step after resolve
 - No Notion writes
+- Fast.io session path: `trading-proposals/sessions/<EXPORT_DATE>-<RUN_ID>/`
+- Fast.io watchlist filename: `watchlist.txt` (local file keeps `YYYY-MM-DD-<run_id>.txt`)
+- Fast.io enabled by default; use `--no-fastio` to skip cloud provisioning
 
 ## Inputs
 
@@ -35,7 +38,8 @@ All inputs are optional.
 - `--run-id <id>` — Parallel / Research run id (e.g. `trun_abc123`). Used to find the linked `Research Runs` row and to name the output file. When omitted, auto-select the latest created `Research Runs` row with a non-empty `Run ID`.
 - `--date <YYYY-MM-DD>` — override export date used in the filename; default is the local calendar date when the skill runs
 - `--output-dir <path>` — override output directory; default `data/tradingview/`
-- `--dry-run` — resolve symbols and preview the watchlist; do not write the `.txt` file
+- `--dry-run` — resolve symbols and preview the watchlist and planned Fast.io session; do not write the local `.txt` file or call Fast.io
+- `--no-fastio` — skip Fast.io session provisioning and upload; local file write only
 
 ## Steps
 
@@ -47,6 +51,7 @@ All inputs are optional.
 
 2. Validate auth and tools without exposing secrets:
    - Check `NOTION_API_TOKEN` from environment first, then `.env` if needed.
+   - Unless `--no-fastio`, also check `FASTIO_API_KEY` and `FASTIO_WORKSPACE_NAME`; confirm `fastio` CLI is available.
    - Confirm `curl` and `jq` are available.
    - Do not print raw token values.
 
@@ -187,9 +192,56 @@ NASDAQ:NVDA
    - If the target file already exists and this is not `--dry-run`, stop and ask whether to overwrite. Do not overwrite without explicit confirmation.
    - If `--dry-run`, show the full planned file contents and path; do not write.
 
-9. Final report:
+9. Provision Fast.io session (skip when `--no-fastio` or `--dry-run`):
+   - Read `.agents/skills/fastio-cli/SKILL.md`.
+   - Load Fast.io env: `set -a && [ -f .env ] && . ./.env && set +a`
+   - Resolve workspace ID from `FASTIO_WORKSPACE_NAME`.
+   - Resolve or create `trading-proposals/` and `sessions/` by folder name.
+   - Set `SESSION_ID` = `${EXPORT_DATE}-${RUN_ID}` (same date and run id as the local filename).
+   - Set `SESSION_PATH` = `trading-proposals/sessions/${SESSION_ID}/`
+   - List `sessions/` for an existing folder named `SESSION_ID`.
+   - If the session folder exists and already contains `watchlist.txt`, stop and ask whether to overwrite. Do not overwrite without explicit confirmation.
+   - Create the session folder when absent:
+
+```bash
+fastio files create-folder --workspace "$WS_ID" \
+  --parent "$SESSIONS_ID" \
+  "$SESSION_ID" \
+  --format json
+```
+
+   - Upload the local watchlist content as `watchlist.txt`:
+
+```bash
+fastio upload file --workspace "$WS_ID" \
+  --folder "$SESSION_FOLDER_ID" \
+  "${LOCAL_WATCHLIST_PATH}" --format json
+```
+
+   - Upload or update `manifest.json` with minimum fields:
+
+```json
+{
+  "session_id": "2026-06-06-trun_abc123",
+  "run_id": "trun_abc123",
+  "created_at": "2026-06-06",
+  "status": "watchlist_exported",
+  "files": {
+    "watchlist": "watchlist.txt",
+    "screeners": []
+  },
+  "local_source": "data/tradingview/2026-06-06-trun_abc123.txt"
+}
+```
+
+   - When updating an existing manifest, preserve any existing `files.screeners` entries (filenames starting with `screener-` and ending in `.csv`).
+   - If `--dry-run`, report planned `SESSION_PATH`, upload targets, and manifest payload only; do not call Fast.io.
+
+10. Final report:
    - `run_id`, whether it was supplied or auto-selected (`latest_created`), and matched `Research Runs` page ID
-   - output path (or planned path for `--dry-run`)
+   - local output path (or planned path for `--dry-run`)
+   - Fast.io session path and upload status (or planned actions for `--dry-run` / skipped for `--no-fastio`)
+   - manifest `status`
    - proposals matched / resolved / ambiguous / failed
    - per-row table:
      - proposal title
@@ -198,7 +250,8 @@ NASDAQ:NVDA
      - resolved `TV_ID` or failure reason
      - page ID
    - list of `TV_ID` values written (or that would be written)
-   - reminder: upload the `.txt` file in TradingView via watchlist → Upload list
+   - reminder: import `watchlist.txt` in TradingView via watchlist → Upload list (use the local file or download from Fast.io)
+   - reminder: after Pine Screener, upload any `screener-*.csv` to the same Fast.io session folder
    - reminder: unresolved rows need manual TV symbol review before re-export
 
 ## Example Invocations
@@ -221,6 +274,12 @@ export-tv-watchlist --run-id trun_abc123 --dry-run
 export-tv-watchlist --run-id trun_abc123 --date 2026-06-06
 ```
 
+```text
+export-tv-watchlist --run-id trun_abc123 --no-fastio
+```
+
+Local watchlist only; skip Fast.io provisioning.
+
 ## Out of Scope
 
 - Notion writes (including `Instrument ID` TV cache)
@@ -229,3 +288,5 @@ export-tv-watchlist --run-id trun_abc123 --date 2026-06-06
 - Multi-run batch export in one file
 - Layer 2 pricing fields
 - TradingView watchlist upload automation
+- Per-script Fast.io subfolders (`<script-slug>` in session path)
+- Inferring Pine script identity from screener filenames
