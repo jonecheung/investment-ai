@@ -1,0 +1,126 @@
+# Portfolio Guardrails — workspace template (initial suggestions)
+#
+# Purpose: hard limits and soft preferences for portfolio plan runs.
+# Status: DRAFT — replace suggested values with your own policy numbers.
+#
+# Canonical Notion schema: data/portfolio/guardrails.md
+# Related: data/notion/portfolio.md, data/notion/research.md (Trading Proposals)
+#
+# Usage (future skill):
+#   1. Load active policy (Notion or this file)
+#   2. Snapshot guardrails onto each Portfolio Analysis for audit
+#   3. Apply hard_limits as constraints; soft_preferences as ranking/objective
+
+schema_version: 1
+status: draft  # draft | active | archived
+
+# --- Identity ---
+
+policy_name: default
+effective_date: null  # YYYY-MM-DD when activated; null while draft
+base_currency: HKD     # reporting currency for NAV, cash, and risk budgets
+
+# --- Tier 1: Hard limits (planner must satisfy) ---
+
+hard_limits:
+  # Concentration
+  max_single_holding_pct: 12.0       # max weight for one symbol in target portfolio
+  max_holdings_count: 10             # max distinct non-cash positions
+
+  # Cash buffer
+  min_cash_pct: 5.0                  # minimum cash weight after plan
+  max_cash_pct: 35.0                 # maximum cash weight (avoid under-deployment)
+
+  # Risk at stop (primary sizing method for tactical proposals)
+  max_risk_per_proposal_pct: 1.5     # max NAV loss at stop for one new/adjusted line
+  max_portfolio_heat_pct: 6.0        # sum of all positions' risk-at-stop / NAV
+
+  # Proposal quality gate (aligns with Trading Proposals.Reward Risk Ratio)
+  min_reward_risk_ratio: 2.0         # reward/risk; see research.md definition
+
+  # Rebalance guard (optional hard cap on one plan run)
+  max_turnover_pct: 25.0             # max % of NAV traded (buy+sell) in one plan
+
+# --- Market exposure caps (weight-based, on target portfolio) ---
+# Limits apply to sum of Market Value weights by Trading Proposals.Market / snapshot Market.
+# Suggested starter set for HK + JP + US coverage; adjust to your policy.
+
+market_limits:
+  HK:
+    max_exposure_pct: 50.0
+  JP:
+    max_exposure_pct: 30.0
+  US:
+    max_exposure_pct: 70.0
+  OTHER:
+    max_exposure_pct: 15.0
+
+# --- Asset class caps (optional; weight-based) ---
+
+asset_class_limits:
+  equity:
+    max_exposure_pct: 90.0
+  etf:
+    max_exposure_pct: 40.0
+  crypto:
+    max_exposure_pct: 10.0
+
+# --- Tier 2: Soft preferences (optimization objective, not hard reject) ---
+
+soft_preferences:
+  # Primary objective when multiple feasible target portfolios exist
+  objective: maximize_conviction_weighted_reward_risk
+  # Options: maximize_conviction_weighted_reward_risk | minimize_turnover | maximize_new_proposals
+
+  conviction_weights:
+    high: 3
+    medium: 2
+    low: 1
+
+  # Prefer keeping existing lines unless guardrails or thesis break force a change
+  existing_position_bias: 0.2        # 0–1; higher = less willing to trim incumbents
+
+  # Diversification by Trading Proposals.Risk Bucket (soft cap)
+  max_positions_per_risk_bucket: 4
+
+  # Correlation proxy: limit names sharing the same Risk Bucket + Market combo
+  max_positions_per_market_risk_bucket: 2
+
+# --- Tier 3: Regime overrides (conditional adjustments) ---
+# Applied on top of hard_limits when triggers match plan-run inputs.
+
+regime_overrides:
+  drawdown_from_peak:
+    trigger_pct: 5.0                 # peak-to-current NAV decline
+    max_portfolio_heat_multiplier: 0.5
+    max_risk_per_proposal_multiplier: 0.5
+    min_cash_pct_floor: 10.0         # raise min cash during drawdown
+
+  stale_pricing:
+    exclude_proposal_when_pricing_status: Stale  # from Trading Proposals
+
+  watchlist_intent:
+    exclude_intent: Watchlist          # never allocate to Watchlist-only proposals
+
+# --- Planner behavior ---
+
+planner:
+  # Which proposals enter the candidate pool
+  require_proposal_status: Accepted
+  require_pricing_status: Ready
+  require_intent: Trade
+
+  # When sizing from stop distance (long): quantity = (NAV * risk_pct) / (entry - stop)
+  sizing_method: risk_at_stop        # risk_at_stop | fixed_weight (future)
+
+  # If a proposal cannot fit, record rejection on plan output (do not silently drop)
+  emit_rejection_reasons: true
+
+# --- Notes (human-readable policy context; not used by planner) ---
+
+notes: |
+  Initial suggested defaults for a single-account, tactical HK/JP/US portfolio.
+  Based on common IPS concentration limits (~5–15% single name) and trading
+  portfolio-heat practice (~6% total risk at stop, ~1–2% per position).
+
+  Review and replace all numeric values before marking status: active.

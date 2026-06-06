@@ -75,8 +75,11 @@ flowchart TD
 
   subgraph PF[Portfolio Data Track]
     L[Approved Sanitized Portfolio Inputs]
-    Q[Position Snapshots<br/>daily state]
-    Impact[Portfolio Impact<br/>hypothetical change]
+    APS[Approved Portfolio Snapshot<br/>+ Portfolio Holdings]
+    Policy[Portfolio Policy]
+    PA[Portfolio Analysis]
+    TPH[Target Portfolio Holdings]
+    RA[Rebalance Actions]
   end
 
   A --> B --> C --> D --> E --> F --> G
@@ -87,9 +90,12 @@ flowchart TD
   R --> S[Watchlist / Monitoring / Possible Trade Framing]
   S -. only approved sanitized records .-> L
 
-  L --> Q
-  K -->|"Accepted + Ready"| Impact
-  Q --> Impact
+  L --> APS
+  K --> PA
+  APS --> PA
+  Policy --> PA
+  PA --> TPH
+  PA --> RA
 
   Z[Safety Boundary<br/>Research only<br/>No trade execution or money movement<br/>No raw sensitive exports stored<br/>External writes require confirmation]
   Z --- R
@@ -115,9 +121,9 @@ Layer 2 uses Alpha Vantage for `Last Price` only.
 
 | Layer | What | Where |
 | --- | --- | --- |
-| Layer 3 | Hypothetical portfolio change if a proposal is adopted | `Portfolio Impact` (see [`data/notion/portfolio.md`](data/notion/portfolio.md)) |
+| Layer 3 | Target portfolio + rebalance actions under guardrails | **Portfolio Analysis** → **Target Portfolio Holdings** + **Rebalance Actions** (schema TBD; see [`data/portfolio/guardrails.md`](data/portfolio/guardrails.md)) |
 
-Layer 3 inputs come from daily `Position Snapshots` (single portfolio; no trade ledger). No automated order placement or trade logging in this workspace.
+Layer 3 inputs: latest **Approved Portfolio Snapshot**, eligible proposals, and active **Portfolio Policy**. Workflow ends at analysis outputs. No trade logging or rebalance execution tracking in this workspace.
 
 ## Workspace Structure
 
@@ -174,24 +180,26 @@ Before saving any data into the workspace, the assistant should summarize what w
 
 ## Notion Portfolio Schema Plan
 
-Portfolio planning lives in Notion. The schema targets a **single portfolio** with daily snapshot capture and hypothetical proposal impact analysis. It does not track trades, cash events, P&L, or execution history.
+Portfolio planning lives in Notion. The schema targets a **single portfolio** with daily snapshot capture and **Portfolio Analysis**. Layer 3 output schemas are TBD; see [`data/portfolio/guardrails.md`](data/portfolio/guardrails.md).
 
-The saved schema is at [`data/notion/portfolio.md`](data/notion/portfolio.md). The canonical `Trading Proposals` schema is in [`data/notion/research.md`](data/notion/research.md).
+The snapshot schema is at [`data/notion/portfolio.md`](data/notion/portfolio.md). The canonical `Trading Proposals` schema is in [`data/notion/research.md`](data/notion/research.md).
 
-Databases:
+Databases (current):
 
-- `Position Snapshots`: daily (or periodic) portfolio state — holdings and cash as of a `Snapshot Date`, with quantity, market price, and market value.
-- `Portfolio Impact`: hypothetical change if an accepted, price-ready proposal were adopted — quantity, weight, and risk at stop relative to the latest snapshot.
+- `Portfolio Snapshot`: one row per as-of date; **`Status = approved`** → **Approved Portfolio Snapshot**.
+- `Portfolio Holdings`: holdings and cash for each snapshot — `Ticker`, quantity, market price/value, planned prices, optional `Average Cost`, optional `Source Proposal`.
+- `Portfolio Policy`: guardrails — [`data/portfolio/guardrails.md`](data/portfolio/guardrails.md).
+
+Future (Layer 3, schema TBD): `Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions`.
 
 Out of scope:
 
-- Multiple accounts, trade ledgers, cash movement ledgers, cost basis, and P&L accounting.
+- Multiple accounts, trade ledgers, cash movement ledgers, P&L trails, rebalance execution tracking.
 
 Implementation notes:
 
 - Use Notion `number` for quantities and money values.
 - Use Notion `date` for snapshot as-of dates.
-- Link `Portfolio Impact` to `Trading Proposals` via relation.
 - Do not store credentials, account numbers, raw exports, tax documents, or full statements.
 - Make Notion portfolio database structure changes only after explicit confirmation.
 
