@@ -11,8 +11,7 @@ data/
 ├── README.md
 ├── notion/          # Notion database specs
 ├── parallel/        # Parallel API output contracts and paired prompts
-├── prompts/         # Other reusable prompt assets
-└── ref/             # Workflow handoff and reference notes
+└── prompts/         # Other reusable prompt assets
 ```
 
 | Folder | Purpose | Examples |
@@ -20,7 +19,6 @@ data/
 | `notion/` | Notion database structure only | `research.md`, `portfolio.md` |
 | `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md` |
 | `prompts/` | Reusable prompts for other workflows | `research-idea-brief.md` |
-| `ref/` | Non-schema reference and outstanding-task notes | `tradable-workflow-outstanding-tasks.md` |
 
 ## File Naming
 
@@ -29,7 +27,6 @@ Use lowercase, kebab-case filenames **without** redundant type prefixes inside e
 - `notion/research.md` — not `schema-notion-research.md`
 - `parallel/output-tradable-tickers.json` — Parallel output contract, not a Notion schema
 - `prompts/research-idea-brief.md`
-- `ref/tradable-workflow-outstanding-tasks.md`
 
 Guidelines:
 
