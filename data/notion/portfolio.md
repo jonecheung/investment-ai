@@ -2,7 +2,7 @@
 
 Snapshot date: 2026-06-06
 
-> **Status notice:** This document is **provisional**. Portfolio sizing and execution schemas are deferred pending a separate redesign. Cross-references to trading proposal price fields may be stale; the canonical Trading Proposals schema is in [`data/notion/research.md`](research.md) (two-layer model, single `Entry Price` / `Target Price`).
+> **Status notice:** This document is **provisional**. Portfolio sizing and execution schemas are deferred pending a separate redesign. Cross-references to trading proposal price fields may be stale; the canonical Trading Proposals schema is in [`data/notion/research.md`](research.md) (two-layer model, single `Entry Price` / `Target Price`). This file still references legacy proposal fields such as `Entry Reference` and `Target 1`; update when portfolio sizing is redesigned.
 
 This document defines the Notion database schema needed to reconstruct the portfolio and trading history system without copying any data. It includes database names, property names, property types, select options, and relation setup only.
 

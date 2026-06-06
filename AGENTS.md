@@ -80,7 +80,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - For Notion operations, prefer Notion REST API via `curl`.
 - For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for global indices plus Japan and US market data.
 - For deep research operations, prefer `parallel-cli`.
-- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `refresh-workspace`
+- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers-curl`, `refresh-workspace`
 - CLI: `parallel-cli`, `git`, `npx skills`
 - Direct API via `curl`: Notion API, Alpha Vantage API
 - MCP tools are secondary by default in this workspace.
@@ -138,6 +138,6 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `expand-new-ideas`: use to transform eligible Notion `Research Ideas` from raw `Original Idea` entries into research-ready `Research Input` before execution.
 - `run-expanded-ideas-deep-research`: use to kick off Parallel deep research for eligible expanded ideas and prepare run metadata logging.
 - `poll-deep-research-runs`: use to poll in-flight Parallel research runs and update Notion with completion status, summaries, and result pointers.
-- `followup-tradable-tickers`: use to run a follow-up from a prior Parallel interaction, validate tradable ticker JSON, and prepare/import linked trading proposals after confirmation.
+- `followup-tradable-tickers-curl`: use to run a Parallel Task API follow-up from a prior interaction, validate tradable ticker JSON with `ajv-cli`, and prepare/import linked `Trading Proposals` after confirmation per `data/notion/research.md`.
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.

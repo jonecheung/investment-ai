@@ -14,7 +14,7 @@ Refresh your working understanding of this workspace in read-only mode.
    - `AGENTS.md`
 
 2. Refresh `data/` context:
-   - List files under `data/`.
+   - List files under `data/` and its subfolders: `notion/` (Notion DB specs), `parallel/` (Parallel API contracts and paired prompts), `prompts/` (other reusable prompts), `ref/` (workflow handoff notes).
    - Read relevant non-sensitive text, Markdown, and schema files needed to understand current workspace data structures and references.
    - Do not read raw financial exports, statements, tax documents, account documents, or bulky/binary files unless the user explicitly asks.
 

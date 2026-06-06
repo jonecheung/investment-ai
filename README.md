@@ -63,7 +63,7 @@ flowchart TD
     H[Completed Research Context]
     I[Follow-up Opportunity Scan]
     J[Structured Ticker Opportunities]
-    K[Trading Proposals<br/>research hypotheses and monitoring signals]
+    K[Trading Proposals<br/>Layer 1 qualitative + Layer 2 price plan]
   end
 
   subgraph PF[Portfolio Data Track]
@@ -83,7 +83,6 @@ flowchart TD
   K --> R[Human Review / Decision Support]
   R --> S[Watchlist / Monitoring / Possible Trade Framing]
   S -. only approved sanitized records .-> L
-  K --> Sizing
 
   L --> M
   M --> N
