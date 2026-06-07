@@ -82,7 +82,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - For Notion operations, prefer Notion REST API via `curl`.
 - For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for global indices plus Japan and US market data.
 - For deep research operations, prefer `parallel-cli`.
-- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `import-screener-pricing`, `fastio-cli`, `refresh-proposal-quotes`, `evaluate-portfolio-guardrails`, `refresh-workspace`
+- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `import-screener-pricing`, `fastio-cli`, `refresh-proposal-quotes`, `evaluate-portfolio-guardrails`, `run-portfolio-analysis`, `refresh-workspace`
 - CLI: `parallel-cli`, `fastio`, `git`, `npx skills`
 - Direct API via `curl`: Notion API, Alpha Vantage API, Parallel Task API, TradingView symbol search
 - MCP tools are secondary by default in this workspace.
@@ -147,5 +147,6 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `fastio-cli`: use for basic Fast.io cloud file operations (list, create folders, upload, download, search) and per-run Trading Proposals session storage (`trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/` with `watchlist.txt` and `screener*.csv`); resolves workspace and folders by name (`FASTIO_WORKSPACE_NAME`).
 - `refresh-proposal-quotes`: use to fetch Alpha Vantage last daily close for `Trading Proposals` and update Notion `Last Price` and `Quote As Of` via curl (writes by default; use `--dry-run` to preview only).
 - `evaluate-portfolio-guardrails`: use to compute portfolio heat, concentration, cash, and exposure metrics from the latest Approved Portfolio Snapshot in Notion and check against the active Notion `Portfolio Policy` (read-only; optional `--policy` YAML override).
+- `run-portfolio-analysis`: use to run Layer 3 portfolio planning (unified rank + swap optimizer) from Notion snapshot, policy, and eligible Trading Proposals; JSON dry-run by default, `--write` for Notion Layer 3 outputs.
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.
