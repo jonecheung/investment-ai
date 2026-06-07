@@ -12,6 +12,7 @@ GUARDRAILS = Path(__file__).resolve().parents[2] / "evaluate-portfolio-guardrail
 sys.path.insert(0, str(GUARDRAILS))
 sys.path.insert(0, str(SCRIPTS))
 
+from output_schema import build_target_holdings  # noqa: E402
 from planner import (  # noqa: E402
     LineCandidate,
     compute_turnover_pct,
@@ -20,6 +21,7 @@ from planner import (  # noqa: E402
     quantity_from_risk,
     risk_per_unit,
     run_planner,
+    sync_line_from_risk,
 )
 from rebalance import action_type, build_rebalance_actions  # noqa: E402
 from universe import build_universe  # noqa: E402
@@ -130,6 +132,73 @@ class TestRebalance(unittest.TestCase):
             included=True,
         )
         self.assertEqual(action_type(line), "add")
+
+
+class TestCurrencyAlignment(unittest.TestCase):
+    def test_sync_line_from_risk_converts_usd_risk_to_base(self):
+        line = LineCandidate(
+            ticker="TSM",
+            line_source="proposal",
+            market="US",
+            currency="USD",
+            entry_price=100.0,
+            stop_price=90.0,
+            reference_price=100.0,
+            trade_type="long",
+            target_risk_at_stop=10_000.0,
+        )
+        fx = {"base_currency": "HKD", "rates": {"HKD": 1.0, "USD": 7.8}}
+        sync_line_from_risk(line, 1_000_000.0, fx, "HKD")
+        risk_local = 10_000.0 / 7.8
+        expected_qty = risk_local / 10.0
+        expected_mv_base = expected_qty * 100.0 * 7.8
+        self.assertAlmostEqual(line.target_quantity, expected_qty)
+        self.assertAlmostEqual(line.target_market_value, expected_mv_base)
+
+    def test_target_holdings_risk_matches_compute_metrics(self):
+        from metrics import compute_metrics
+
+        nav = 1_000_000.0
+        line = LineCandidate(
+            ticker="TSM",
+            line_source="proposal",
+            market="US",
+            currency="USD",
+            entry_price=100.0,
+            stop_price=90.0,
+            reference_price=100.0,
+            trade_type="long",
+            included=True,
+            target_risk_at_stop=10_000.0,
+        )
+        fx = {
+            "base_currency": "HKD",
+            "rates": {"HKD": 1.0, "USD": 7.8},
+            "sources": {"HKD": "identity", "USD": "test"},
+        }
+        sync_line_from_risk(line, nav, fx, "HKD")
+        metrics = compute_metrics(
+            {"nav": nav, "base_currency": "HKD"},
+            [
+                {
+                    "ticker": "TSM",
+                    "holding_type": "holding",
+                    "market": "US",
+                    "currency": "USD",
+                    "asset_class": "equity",
+                    "trade_type": "long",
+                    "quantity": line.target_quantity,
+                    "market_value": line.target_market_value,
+                    "entry_price": 100.0,
+                    "stop_price": 90.0,
+                }
+            ],
+            fx=fx,
+        )["positions"][0]
+        rows = build_target_holdings([line], 0.0, nav, positions=[metrics])
+        self.assertAlmostEqual(rows[0]["risk_at_stop"], metrics["risk_at_stop"])
+        self.assertAlmostEqual(rows[0]["risk_at_stop_pct"], metrics["risk_at_stop_pct"])
+        self.assertAlmostEqual(rows[0]["target_weight_pct"], metrics["weight_pct"])
 
 
 class TestRepairHelpers(unittest.TestCase):

@@ -12,6 +12,27 @@ RISK_STEP_PCT = 0.1  # increment per greedy step as % of NAV
 NEW_PROPOSAL_BOOST = 0.05
 
 
+def local_to_base_rate(
+    line: LineCandidate,
+    fx: dict[str, Any] | None,
+    base_currency: str,
+) -> float:
+    """Multiplier: amount_base = amount_local * rate."""
+    from fx_rates import resolve_holding_currency
+
+    base = (fx or {}).get("base_currency") or base_currency
+    holding = {"currency": line.currency, "market": line.market}
+    currency = resolve_holding_currency(holding) or base
+    if currency == base:
+        return 1.0
+    if fx is None:
+        return 1.0
+    rate = fx.get("rates", {}).get(currency)
+    if rate is None or rate <= 0:
+        return 1.0
+    return float(rate)
+
+
 def risk_per_unit(entry: float, stop: float, trade_type: str) -> float:
     if trade_type == "short":
         return max(0.0, stop - entry)
@@ -56,16 +77,23 @@ def objective_value(line: LineCandidate) -> float:
     return base_score(line) * line.target_risk_at_stop
 
 
-def sync_line_from_risk(line: LineCandidate, nav: float) -> None:
-    """Update quantity and MV from target_risk_at_stop."""
+def sync_line_from_risk(
+    line: LineCandidate,
+    nav: float,
+    fx: dict[str, Any] | None = None,
+    base_currency: str = "HKD",
+) -> None:
+    """Update quantity and MV from target_risk_at_stop (base currency)."""
     entry = line.entry_price
     stop = line.stop_price
     if entry is None or stop is None:
         return
-    qty = quantity_from_risk(line.target_risk_at_stop, entry, stop, line.trade_type)
+    rate = local_to_base_rate(line, fx, base_currency)
+    risk_local = line.target_risk_at_stop / rate if rate > 0 else line.target_risk_at_stop
+    qty = quantity_from_risk(risk_local, entry, stop, line.trade_type)
     price = line.reference_price or entry
     line.target_quantity = qty
-    line.target_market_value = market_value_from_quantity(qty, price)
+    line.target_market_value = market_value_from_quantity(qty, price) * rate
 
 
 def zero_line_targets(line: LineCandidate) -> None:
@@ -165,14 +193,20 @@ def _has_pricing(line: LineCandidate) -> bool:
     return line.entry_price is not None and line.stop_price is not None
 
 
-def _trim_line_risk(line: LineCandidate, step_nav_pct: float, nav: float) -> None:
+def _trim_line_risk(
+    line: LineCandidate,
+    step_nav_pct: float,
+    nav: float,
+    fx: dict[str, Any] | None = None,
+    base_currency: str = "HKD",
+) -> None:
     step = nav * step_nav_pct / 100.0
     reducible = max(0.0, line.target_risk_at_stop - step)
     if reducible <= 0:
         zero_line_targets(line)
         return
     line.target_risk_at_stop = reducible
-    sync_line_from_risk(line, nav)
+    sync_line_from_risk(line, nav, fx, base_currency)
 
 
 def _trim_line_to_weight_cap(line: LineCandidate, nav: float, max_single_pct: float) -> None:
@@ -256,6 +290,8 @@ def _trim_until_feasible(
     target_state_fn: Any,
     current_cash_mv_fn: Any,
     notes: list[str],
+    fx: dict[str, Any] | None = None,
+    base_currency: str = "HKD",
     max_iters: int = 500,
 ) -> bool:
     for _ in range(max_iters):
@@ -297,7 +333,7 @@ def _trim_until_feasible(
             continue
 
         line = min(candidates, key=lambda item: effective_score(item, position_bias))
-        _trim_line_risk(line, RISK_STEP_PCT, nav)
+        _trim_line_risk(line, RISK_STEP_PCT, nav, fx, base_currency)
         line.notes.append(f"trimmed for feasibility: {failed[0]}")
         notes.append(f"trimmed {line.ticker} for {failed[0]}")
     return False
@@ -308,6 +344,8 @@ def _try_risk_step(
     nav: float,
     max_risk_line: float,
     heat_step: float,
+    fx: dict[str, Any] | None,
+    base_currency: str,
     *,
     is_new: bool,
 ) -> bool:
@@ -324,7 +362,7 @@ def _try_risk_step(
     else:
         return False
 
-    sync_line_from_risk(line, nav)
+    sync_line_from_risk(line, nav, fx, base_currency)
     return True
 
 
@@ -332,6 +370,8 @@ def _revert_risk_step(
     line: LineCandidate,
     nav: float,
     heat_step: float,
+    fx: dict[str, Any] | None,
+    base_currency: str,
     *,
     is_new: bool,
 ) -> None:
@@ -342,7 +382,7 @@ def _revert_risk_step(
     if line.target_risk_at_stop <= 0:
         zero_line_targets(line)
     else:
-        sync_line_from_risk(line, nav)
+        sync_line_from_risk(line, nav, fx, base_currency)
 
 
 def _blocking_failures(
@@ -375,6 +415,8 @@ def _greedy_size(
     target_state_fn: Any,
     current_cash_mv_fn: Any,
     fit_rejections: list[dict[str, Any]],
+    fx: dict[str, Any] | None = None,
+    base_currency: str = "HKD",
     max_iters: int = 1000,
 ) -> None:
     for _ in range(max_iters):
@@ -396,6 +438,8 @@ def _greedy_size(
                 nav,
                 max_risk_line,
                 heat_step,
+                fx,
+                base_currency,
                 is_new=is_new or reopen,
             ):
                 continue
@@ -441,6 +485,8 @@ def _try_swap(
     max_holdings: int,
     target_state_fn: Any,
     current_cash_mv_fn: Any,
+    fx: dict[str, Any] | None = None,
+    base_currency: str = "HKD",
 ) -> bool:
     included = [
         line
@@ -472,7 +518,7 @@ def _try_swap(
 
     best.included = True
     best.target_risk_at_stop = min(heat_step, max_risk_line)
-    sync_line_from_risk(best, nav)
+    sync_line_from_risk(best, nav, fx, base_currency)
 
     cash_mv = current_cash_mv_fn()
     metrics, _ = target_state_fn(cash_mv)
@@ -519,6 +565,7 @@ def run_planner(
     max_risk_line_pct = max_risk_per_line_nav_pct(policy, regime_info)
     max_risk_line = nav * max_risk_line_pct / 100.0
     heat_step = nav * RISK_STEP_PCT / 100.0
+    base_currency = policy.get("base_currency") or "HKD"
 
     notes: list[str] = []
     fit_rejections: list[dict[str, Any]] = []
@@ -580,6 +627,8 @@ def run_planner(
             target_state,
             current_cash_mv,
             notes,
+            fx,
+            base_currency,
         ):
             return PlanResult(
                 lines=working,
@@ -605,6 +654,8 @@ def run_planner(
             target_state,
             current_cash_mv,
             fit_rejections,
+            fx,
+            base_currency,
         )
 
         notes.append("Swap: replace lower-ranked incumbents with higher-ranked proposals")
@@ -620,6 +671,8 @@ def run_planner(
                 max_holdings,
                 target_state,
                 current_cash_mv,
+                fx,
+                base_currency,
             ):
                 break
             _greedy_size(
@@ -634,6 +687,8 @@ def run_planner(
                 target_state,
                 current_cash_mv,
                 fit_rejections,
+                fx,
+                base_currency,
                 max_iters=200,
             )
 
@@ -646,6 +701,8 @@ def run_planner(
             target_state,
             current_cash_mv,
             notes,
+            fx,
+            base_currency,
         ):
             return PlanResult(
                 lines=working,

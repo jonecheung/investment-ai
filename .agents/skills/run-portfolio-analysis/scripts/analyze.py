@@ -155,6 +155,7 @@ def main() -> int:
             eligible_proposals_count=len(eligible),
             rebalance_actions=rebalance_actions,
             fx_rates=target_metrics_result.get("fx_rates"),
+            target_positions=target_metrics_result.get("positions"),
         )
 
         payload = json.dumps(output, indent=2, ensure_ascii=False) + "\n"

@@ -13,13 +13,25 @@ def build_target_holdings(
     lines: list[LineCandidate],
     target_cash_mv: float,
     nav: float,
+    positions: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
+    metrics_by_ticker = {
+        (p.get("ticker") or "").upper(): p for p in (positions or []) if p.get("ticker")
+    }
     rows: list[dict[str, Any]] = []
     for line in lines:
         if not line.included or line.target_market_value <= 0:
             continue
-        weight = line.target_market_value / nav * 100.0 if nav else 0.0
-        risk_pct = line.target_risk_at_stop / nav * 100.0 if nav else 0.0
+        measured = metrics_by_ticker.get(line.ticker.upper(), {})
+        weight = measured.get("weight_pct")
+        if weight is None:
+            weight = line.target_market_value / nav * 100.0 if nav else 0.0
+        risk_at_stop = measured.get("risk_at_stop")
+        risk_pct = measured.get("risk_at_stop_pct")
+        if risk_at_stop is None:
+            risk_at_stop = line.target_risk_at_stop
+        if risk_pct is None:
+            risk_pct = line.target_risk_at_stop / nav * 100.0 if nav else 0.0
         rows.append(
             {
                 "ticker": line.ticker,
@@ -29,14 +41,14 @@ def build_target_holdings(
                 "asset_class": line.asset_class,
                 "currency": line.currency,
                 "trade_type": line.trade_type,
-                "target_weight_pct": round(weight, 4),
+                "target_weight_pct": round(float(weight), 4),
                 "target_market_value": round(line.target_market_value, 4),
                 "target_quantity": round(line.target_quantity, 6),
                 "entry_price": line.entry_price,
                 "stop_price": line.stop_price,
                 "target_price": line.target_price,
-                "risk_at_stop": round(line.target_risk_at_stop, 4),
-                "risk_at_stop_pct": round(risk_pct, 4),
+                "risk_at_stop": round(float(risk_at_stop), 4),
+                "risk_at_stop_pct": round(float(risk_pct), 4),
                 "line_source": line.line_source,
                 "action_hint": action_hint(line),
                 "source_proposal_id": line.source_proposal_id,
@@ -111,6 +123,7 @@ def build_output(
     eligible_proposals_count: int,
     rebalance_actions: list[dict[str, Any]],
     fx_rates: dict[str, Any] | None = None,
+    target_positions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     nav = float(snapshot["nav"])
     turnover = compute_turnover_pct(plan.lines, nav)
@@ -165,7 +178,12 @@ def build_output(
         "schema_version": 1,
         "computed_at": analysis["computed_at"],
         "analysis": analysis,
-        "target_holdings": build_target_holdings(plan.lines, plan.target_cash_mv, nav),
+        "target_holdings": build_target_holdings(
+            plan.lines,
+            plan.target_cash_mv,
+            nav,
+            positions=target_positions,
+        ),
         "rebalance_actions": rebalance_actions,
         "rejections": all_rejections,
         "guardrail_check_input": guardrail_check_input,
