@@ -26,7 +26,7 @@ They do **not** store trade execution history, rebalance execution status, or P&
 - **Single active policy:** one row (or page) marked `Active = true` at a time.
 - **Versioning:** each material change creates a new row with `Effective Date`; analysis copies policy fields for audit.
 - **Hard vs soft:** hard limits reject or clip allocations; soft preferences rank feasible outcomes.
-- **YAML mirror:** `guardrails.yaml` is a draft/template for local skills; Notion is the intended runtime source once confirmed.
+- **YAML mirror:** `guardrails.yaml` is a draft/template for new policy rows or local `--policy` override; **Notion `Portfolio Policy`** is the runtime source for skills.
 - Do not apply Notion structure changes without explicit confirmation.
 
 ## Notion: Portfolio Policy
@@ -151,15 +151,16 @@ Use either:
 | `soft_preferences.conviction_weights.*` | `Conviction Weight High/Medium/Low` |
 | `regime_overrides.drawdown_from_peak.*` | `Drawdown Trigger Pct`, multipliers, floor |
 
-## Portfolio Analysis Audit (future)
+## Portfolio Analysis Audit
 
-When **Portfolio Analysis** runs, copy active policy fields onto the analysis row (or link + JSON) for audit: which guardrails produced this **Target Portfolio Holdings**.
+When **Portfolio Analysis** runs, link the active **Portfolio Policy** and copy effective limits onto the analysis row for audit.
 
-Minimum audit fields:
+Minimum fields on **Portfolio Analysis** (see [`../notion/portfolio.md`](../notion/portfolio.md)):
 
-- `Policy` relation → `Portfolio Policy` row used
-- `Policy Effective Date`
-- `Max Portfolio Heat Pct`, `Max Single Holding Pct`, `Min Cash Pct` (at minimum)
+- `Portfolio Policy` relation
+- `Policy Effective Date` (rollup)
+- `Max Portfolio Heat Pct`, `Max Single Holding Pct`, `Min Cash Pct`
+- `Objective`, `Sizing Method`, `Drawdown Triggered`
 
 ## Guardrail Evaluation Order (reference)
 

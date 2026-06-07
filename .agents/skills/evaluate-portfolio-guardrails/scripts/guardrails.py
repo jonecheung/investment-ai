@@ -40,7 +40,42 @@ def load_policy(path: Path) -> dict[str, Any]:
         data = yaml.safe_load(fh)
     if not isinstance(data, dict):
         raise ValueError(f"Policy file must be a YAML mapping: {path}")
+    return normalize_policy(data)
+
+
+def normalize_policy(data: dict[str, Any]) -> dict[str, Any]:
+    hard = data.get("hard_limits") or {}
+    required_hard = (
+        "max_holdings_count",
+        "min_cash_pct",
+        "max_cash_pct",
+        "max_single_holding_pct",
+        "max_portfolio_heat_pct",
+    )
+    missing = [key for key in required_hard if hard.get(key) is None]
+    if missing:
+        raise ValueError(
+            "Policy is missing required hard_limits values: "
+            + ", ".join(missing)
+        )
     return data
+
+
+def policy_from_notion(record: dict[str, Any]) -> dict[str, Any]:
+    policy = {
+        "schema_version": record.get("schema_version"),
+        "status": record.get("status"),
+        "policy_name": record.get("title"),
+        "effective_date": record.get("effective_date"),
+        "base_currency": record.get("base_currency"),
+        "hard_limits": record.get("hard_limits") or {},
+        "market_limits": record.get("market_limits") or {},
+        "asset_class_limits": record.get("asset_class_limits") or {},
+        "soft_preferences": record.get("soft_preferences") or {},
+        "regime_overrides": record.get("regime_overrides") or {},
+        "planner": record.get("planner") or {},
+    }
+    return normalize_policy(policy)
 
 
 def _get_nested(data: dict[str, Any], *keys: str) -> Any:
@@ -107,7 +142,7 @@ def build_effective_limits(
 def evaluate_guardrails(
     policy: dict[str, Any],
     metrics: dict[str, Any],
-    policy_path: str,
+    policy_source: dict[str, Any],
     drawdown_pct: float | None = None,
 ) -> dict[str, Any]:
     effective_limits, regime_info = build_effective_limits(policy, drawdown_pct)
@@ -181,7 +216,7 @@ def evaluate_guardrails(
     failed = sum(1 for check in checks if not check["pass"])
 
     return {
-        "policy_path": policy_path,
+        "policy_source": policy_source,
         "policy_status": policy.get("status"),
         "regime": regime_info,
         "effective_limits": {k: round(v, 4) for k, v in effective_limits.items()},

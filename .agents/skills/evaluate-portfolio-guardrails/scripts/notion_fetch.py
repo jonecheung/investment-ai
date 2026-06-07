@@ -15,6 +15,7 @@ BASE_URL = "https://api.notion.com/v1"
 
 SNAPSHOT_TITLES = ("Portfolio Snapshot", "Portfolio Snapshots")
 HOLDINGS_TITLES = ("Portfolio Holdings", "Holdings")
+POLICY_TITLES = ("Portfolio Policy",)
 
 SNAPSHOT_REQUIRED = (
     "Snapshot",
@@ -34,6 +35,18 @@ HOLDINGS_REQUIRED = (
     "Trade Type",
     "Quantity",
     "Market Value",
+)
+
+POLICY_REQUIRED = (
+    "Policy",
+    "Status",
+    "Active",
+    "Base Currency",
+    "Max Single Holding Pct",
+    "Max Holdings Count",
+    "Min Cash Pct",
+    "Max Cash Pct",
+    "Max Portfolio Heat Pct",
 )
 
 
@@ -198,6 +211,12 @@ def _relation_ids(prop: dict[str, Any] | None) -> list[str]:
     return [item["id"] for item in prop.get("relation", []) if item.get("id")]
 
 
+def _checkbox(prop: dict[str, Any] | None) -> bool:
+    if not prop or prop.get("type") != "checkbox":
+        return False
+    return bool(prop.get("checkbox"))
+
+
 def fetch_portfolio_snapshot(
     token: str,
     snapshot_date: str | None = None,
@@ -295,3 +314,129 @@ def fetch_portfolio_snapshot(
         raise NotionError("Portfolio NAV is missing or zero; cannot compute metrics.")
 
     return {"snapshot": snapshot, "holdings": holdings}
+
+
+def fetch_active_portfolio_policy(token: str) -> dict[str, Any]:
+    policy_ds = _search_data_source(token, POLICY_TITLES)
+    policy_ds_id = policy_ds["id"]
+    _validate_schema(policy_ds, POLICY_REQUIRED)
+
+    rows = _paginate_query(
+        token,
+        policy_ds_id,
+        {
+            "filter": {
+                "property": "Active",
+                "checkbox": {"equals": True},
+            },
+            "sorts": [
+                {"property": "Effective Date", "direction": "descending"},
+            ],
+        },
+    )
+    if not rows:
+        rows = _paginate_query(
+            token,
+            policy_ds_id,
+            {
+                "filter": {
+                    "property": "Status",
+                    "select": {"equals": "active"},
+                },
+                "sorts": [
+                    {"property": "Effective Date", "direction": "descending"},
+                ],
+            },
+        )
+    if not rows:
+        raise NotionError(
+            "No active Portfolio Policy found in Notion "
+            "(Active=true or Status=active)."
+        )
+
+    row = rows[0]
+    props = row.get("properties", {})
+    return {
+        "id": row["id"],
+        "title": _plain_text(props.get("Policy")) or "",
+        "status": _select(props.get("Status")),
+        "active": _checkbox(props.get("Active")),
+        "effective_date": _date_start(props.get("Effective Date")),
+        "base_currency": _select(props.get("Base Currency")),
+        "schema_version": _number(props.get("Schema Version")),
+        "hard_limits": {
+            "max_single_holding_pct": _number(props.get("Max Single Holding Pct")),
+            "max_holdings_count": _number(props.get("Max Holdings Count")),
+            "min_cash_pct": _number(props.get("Min Cash Pct")),
+            "max_cash_pct": _number(props.get("Max Cash Pct")),
+            "max_risk_per_proposal_pct": _number(
+                props.get("Max Risk Per Proposal Pct")
+            ),
+            "max_portfolio_heat_pct": _number(props.get("Max Portfolio Heat Pct")),
+            "min_reward_risk_ratio": _number(props.get("Min Reward Risk Ratio")),
+            "max_turnover_pct": _number(props.get("Max Turnover Pct")),
+        },
+        "market_limits": {
+            "HK": {"max_exposure_pct": _number(props.get("Max HK Exposure Pct"))},
+            "JP": {"max_exposure_pct": _number(props.get("Max JP Exposure Pct"))},
+            "US": {"max_exposure_pct": _number(props.get("Max US Exposure Pct"))},
+            "OTHER": {
+                "max_exposure_pct": _number(props.get("Max Other Exposure Pct"))
+            },
+        },
+        "asset_class_limits": {
+            "equity": {
+                "max_exposure_pct": _number(props.get("Max Equity Exposure Pct"))
+            },
+            "etf": {"max_exposure_pct": _number(props.get("Max ETF Exposure Pct"))},
+            "crypto": {
+                "max_exposure_pct": _number(props.get("Max Crypto Exposure Pct"))
+            },
+        },
+        "soft_preferences": {
+            "objective": _select(props.get("Objective")),
+            "conviction_weights": {
+                "high": _number(props.get("Conviction Weight High")),
+                "medium": _number(props.get("Conviction Weight Medium")),
+                "low": _number(props.get("Conviction Weight Low")),
+            },
+            "existing_position_bias": _number(props.get("Existing Position Bias")),
+            "max_positions_per_risk_bucket": _number(
+                props.get("Max Positions Per Risk Bucket")
+            ),
+            "max_positions_per_market_risk_bucket": _number(
+                props.get("Max Positions Per Market Risk Bucket")
+            ),
+        },
+        "regime_overrides": {
+            "drawdown_from_peak": {
+                "trigger_pct": _number(props.get("Drawdown Trigger Pct")),
+                "max_portfolio_heat_multiplier": _number(
+                    props.get("Drawdown Heat Multiplier")
+                ),
+                "max_risk_per_proposal_multiplier": _number(
+                    props.get("Drawdown Risk Multiplier")
+                ),
+                "min_cash_pct_floor": _number(
+                    props.get("Drawdown Min Cash Floor Pct")
+                ),
+            },
+            "stale_pricing": {
+                "exclude_proposal_when_pricing_status": "Stale"
+                if _checkbox(props.get("Exclude Stale Pricing"))
+                else None,
+            },
+            "watchlist_intent": {
+                "exclude_intent": "Watchlist"
+                if _checkbox(props.get("Exclude Watchlist Intent"))
+                else None,
+            },
+        },
+        "planner": {
+            "require_proposal_status": _select(props.get("Require Proposal Status")),
+            "require_pricing_status": _select(props.get("Require Pricing Status")),
+            "require_intent": _select(props.get("Require Intent")),
+            "sizing_method": _select(props.get("Sizing Method")),
+            "emit_rejection_reasons": True,
+        },
+    }

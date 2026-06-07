@@ -20,11 +20,11 @@ These are technical/runtime defaults for tools, integrations, and workspace refe
 
 | Key | Value | Notes |
 | --- | --- | --- |
-| Portfolio schema | `data/notion/portfolio.md` | `Portfolio Snapshot`, `Portfolio Holdings`; Layer 3: `Portfolio Analysis` (TBD) |
+| Portfolio schema | `data/notion/portfolio.md` | `Portfolio Snapshot`, `Portfolio Holdings`; Layer 3: `Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions` |
 | Research schema | `data/notion/research.md` | Canonical research system schema including two-layer Trading Proposals (Layer 1 + Layer 2 price plan, 31 properties) |
 | TradingView assets | `data/tradingview/` | Watchlist `.txt` exports and Pine Screener `.pine` scripts for Layer 2 pricing |
 | Environment template | `env.sample` | Non-secret template for API keys and service names; copy to `.env` locally |
-| Notion portfolio databases | `Portfolio Snapshot`, `Portfolio Holdings`, `Portfolio Policy` | Approved snapshot + holdings; guardrails in `data/portfolio/guardrails.md`; analysis schema TBD |
+| Notion portfolio databases | `Portfolio Snapshot`, `Portfolio Holdings`, `Portfolio Policy`, `Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions` | Approved snapshot + holdings; guardrails in `data/portfolio/guardrails.md`; Layer 3 schema in `data/notion/portfolio.md` |
 | Notion ideas database | `Research Ideas` | Idea lifecycle and scheduling control |
 | Notion runs database | `Research Runs` | Run-level execution log and audit trail |
 | Tooling priority | CLI > `curl` API > MCP | MCP is fallback unless explicitly requested |
@@ -146,6 +146,6 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `import-screener-pricing`: use to download Pine Screener `screener*.csv` files from a per-run Fast.io session and import Layer 2 price fields into Notion `Trading Proposals` for rows where `Pricing Status` is not `Ready` (writes by default; use `--dry-run` to preview only).
 - `fastio-cli`: use for basic Fast.io cloud file operations (list, create folders, upload, download, search) and per-run Trading Proposals session storage (`trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/` with `watchlist.txt` and `screener*.csv`); resolves workspace and folders by name (`FASTIO_WORKSPACE_NAME`).
 - `refresh-proposal-quotes`: use to fetch Alpha Vantage last daily close for `Trading Proposals` and update Notion `Last Price` and `Quote As Of` via curl (writes by default; use `--dry-run` to preview only).
-- `evaluate-portfolio-guardrails`: use to compute portfolio heat, concentration, cash, and exposure metrics from the latest Approved Portfolio Snapshot in Notion and check against `data/portfolio/guardrails.yaml` (read-only).
+- `evaluate-portfolio-guardrails`: use to compute portfolio heat, concentration, cash, and exposure metrics from the latest Approved Portfolio Snapshot in Notion and check against the active Notion `Portfolio Policy` (read-only; optional `--policy` YAML override).
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.
