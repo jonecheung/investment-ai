@@ -1,224 +1,205 @@
-# Notion Portfolio Database Schema v1
+# Notion Portfolio Database Schema v2
 
-Snapshot date: 2026-06-06
+Snapshot date: 2026-06-07
 
-> **Status notice:** This document is **provisional**. Portfolio sizing and execution schemas are deferred pending a separate redesign. Cross-references to trading proposal price fields may be stale; the canonical Trading Proposals schema is in [`data/notion/research.md`](research.md) (two-layer model, single `Entry Price` / `Target Price`). This file still references legacy proposal fields such as `Entry Reference` and `Target 1`; update when portfolio sizing is redesigned.
+This document defines the Notion database schema for **portfolio planning**. It supports daily portfolio state capture and **Portfolio Analysis** outputs. Layer 3 output schemas (`Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions`) are conceptual here; field-level detail is TBD.
 
-This document defines the Notion database schema needed to reconstruct the portfolio and trading history system without copying any data. It includes database names, property names, property types, select options, and relation setup only.
+It does **not** define trade execution logging, cash event ledgers, or P&L accounting trails.
 
-Related research schema:
+Related:
 
-- `data/notion/research.md` (Trading Proposals section)
+- [`data/notion/research.md`](research.md) — `Trading Proposals` (Layer 1 + Layer 2 price plan)
+- [`../portfolio/guardrails.md`](../portfolio/guardrails.md) — `Portfolio Policy` and analysis guardrails
 
 ## Scope
 
-- Databases covered:
-  - Accounts
-  - Trades
-  - Cash Movements
-  - Position Snapshots
-  - Proposal Sizing
-- Excluded:
-  - Page IDs, database IDs, data source IDs, property IDs, URLs, commands, prompts, raw rows, and workspace-specific artifacts.
-  - Raw brokerage exports, full statements, tax documents, credentials, and account secrets.
+### In scope
+
+- Daily (or periodic) portfolio state via `Portfolio Snapshot` and `Portfolio Holdings`
+- **Portfolio Analysis** → **Target Portfolio Holdings** + **Rebalance Actions** (Layer 3; workflow ends at these outputs)
+
+### Out of scope
+
+- Multi-broker or sub-portfolio attribution (single portfolio only)
+- Executed buy/sell records, fees, taxes, settlement, or broker fill import
+- Deposit, withdrawal, dividend, or fee event ledgers
+- Trade-ledger-derived open positions
+- Realized / unrealized P&L and performance attribution trails
+- Trade-ledger-derived average cost history (`Portfolio Holdings` may store point-in-time `Average Cost` from broker capture only)
+- Tracking whether rebalance actions were executed (inferred only when a later `Portfolio Snapshot` is submitted)
+- Automated order placement or post-trade reconciliation against fills
+- Board-lot rounding for order submission (HK/JP lot constraints)
+
+### Excluded from this document
+
+- Page IDs, database IDs, data source IDs, property IDs, URLs, commands, prompts, raw rows
+- Raw brokerage exports, full statements, tax documents, credentials, account secrets
 
 ## Design Notes
 
+- **Single portfolio:** no multi-broker or sub-portfolio attribution.
+- **Approved Portfolio Snapshot:** a `Portfolio Snapshot` row with `Status` = `approved`. The planner uses the latest by `Snapshot Date`.
 - Target storage: Notion databases.
-- Use Notion `number` for money values, prices, and quantities.
-- Use Notion `date` for event timestamps and settlement dates.
-- Store `symbol`, `market`, `asset_type`, and `currency` directly on trade and snapshot rows at first.
-- Keep `source` and `external_id` fields for future CSV/API import deduplication.
-- Keep instrument normalization out of scope for now. Add a separate instruments database only if cross-market normalization becomes difficult to manage inline.
-- Pricing fields (entry, stop, target) belong on `Trading Proposals`. Size fields belong on `Proposal Sizing`.
+- Use Notion `number` for quantities, prices, and money values.
+- Use Notion `date` for snapshot as-of dates and analysis timestamps.
+- Store `ticker`, `market`, `asset_class`, and `currency` on `Portfolio Holdings`.
+- **Planned prices** (entry, stop, target) on holdings support risk-at-stop; canonical plan for new ideas remains on `Trading Proposals`.
+- **`Average Cost`** on a holding is actual cost at capture time (broker/manual), not a computed ledger.
+- **Layer 3 deliverables:** `Portfolio Analysis` produces `Target Portfolio Holdings` and `Rebalance Actions`. The workspace workflow **ends** there.
+- **Portfolio ground truth** is the latest **Approved Portfolio Snapshot** and its `Portfolio Holdings`, not a derived trade ledger.
+- **Portfolio heat** and exposure aggregates are computed by the analyzer at run time; not stored on `Portfolio Snapshot`.
 - Do not store credentials, API keys, full account numbers, raw brokerage exports, tax documents, or full statements.
-- Do not apply Notion portfolio database structure changes without first summarizing intended changes and receiving explicit confirmation.
+- Do not apply Notion portfolio database structure changes without summarizing intended changes and receiving explicit confirmation.
 
-## Accounts
+## Portfolio Snapshot
 
-Purpose: broker or exchange accounts used for portfolio tracking and trade attribution.
+Purpose: **one portfolio state as of a `Snapshot Date`**. One row per snapshot date. When `Status` = `approved`, this row is an **Approved Portfolio Snapshot** and may be used as input to **Portfolio Analysis**.
 
-| Property | Type | Notes |
-| --- | --- | --- |
-| `Account` | title | Display name for the account. |
-| `Provider` | rich_text | Broker, exchange, or custodian name. |
-| `Base Currency` | select | Account reporting currency. Current options: `HKD`, `USD`, `JPY`, `CNY`, `OTHER`. |
-| `Notes` | rich_text | Optional account notes. |
+There is no separate trade or cash-movement ledger. A new portfolio state is captured by creating a new `Portfolio Snapshot` for a given date.
 
-## Trades
-
-Purpose: executed buy and sell records. Instrument details are kept inline for the first version.
+### Properties
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Trade` | title | Human-readable label, typically `<symbol> <side> <traded_at>`. |
-| `Account` | relation | Relation to Accounts. |
-| `Symbol` | rich_text | Tradable symbol or instrument identifier. |
-| `Market` | select | Current options: `HK`, `JP`, `US`, `OTHER`. |
-| `Asset Type` | select | Current options: `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `other`. |
-| `Side` | select | Current options: `buy`, `sell`. |
-| `Quantity` | number | Executed quantity. |
-| `Price` | number | Executed price in quote currency. |
-| `Currency` | select | Quote or settlement currency. Current options: `HKD`, `USD`, `JPY`, `CNY`, `OTHER`. |
-| `Fees` | number | Trading fees. Default to 0 when unknown. |
-| `Taxes` | number | Taxes withheld or paid. Default to 0 when unknown. |
-| `Net Amount` | number | Net cash impact when available. |
-| `Traded At` | date | Execution timestamp. |
-| `Settlement Date` | date | Settlement date when applicable. |
-| `Source` | rich_text | Import source label, for example `manual`, `broker_csv`, `api`. |
-| `External ID` | rich_text | Source-system identifier for deduplication. |
-| `Proposal` | relation | Optional relation to Trading Proposals. |
-| `Proposal Sizing` | relation | Optional relation to Proposal Sizing row that informed the trade. |
-| `Notes` | rich_text | Optional trade notes. |
+| `Snapshot` | title | Human-readable label, typically `Portfolio YYYY-MM-DD`. |
+| `Snapshot Date` | date | As-of date (date only). |
+| `Status` | select | `draft`, `approved`, `superseded`. Latest `approved` = input to analysis. |
+| `Base Currency` | select | `HKD`, `USD`, `JPY`, `CNY`, `OTHER`. Align with [`guardrails.yaml`](../portfolio/guardrails.yaml). |
+| `Captured At` | date | When recorded (datetime optional). |
+| `Portfolio NAV` | number | Sum of holdings `Market Value`; rollup or manual check. |
+| `Cash Available` | number | CASH holding `Market Value`. |
+| `Holdings Count` | number | Non-cash holdings count; optional rollup. |
+| `Source` | rich_text | e.g. `manual`, `broker_export`, `api`. |
+| `Notes` | rich_text | Optional notes. |
 
-### Trades Relations
+### Portfolio Snapshot Relations
 
-- `Trades.Account`
-  - Type: relation
-  - Target: Accounts
-- `Trades.Proposal`
-  - Type: relation
-  - Target: Trading Proposals
-- `Trades.Proposal Sizing`
-  - Type: relation
-  - Target: Proposal Sizing
+- `Portfolio Holdings` → holding rows (relation on holdings)
 
-## Cash Movements
+### Derived values (analyzer; not stored)
 
-Purpose: cash events that are not ordinary executed buy/sell trades.
+- **Portfolio heat pct:** Σ holding risk-at-stop ÷ NAV (see **Portfolio Holdings**).
+- **Market exposure pct:** sum of weights by `Market`.
+- **Latest Approved Portfolio Snapshot:** max `Snapshot Date` where `Status` = `approved`.
+
+## Portfolio Holdings
+
+Purpose: **one row per holding or cash** within a `Portfolio Snapshot`. Input for **Portfolio Analysis** and risk-at-stop.
+
+### Row model
+
+- **Holdings:** one row per `(Portfolio Snapshot, Ticker)` with `Holding Type` = `holding`.
+- **Cash:** one row per snapshot with `Holding Type` = `cash`, `Ticker` = `CASH`.
+- **Short support:** `Trade Type` = `short`; risk-at-stop uses stop above entry.
+
+### Identity and quantity
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Movement` | title | Human-readable label, typically `<movement_type> <amount> <currency>`. |
-| `Account` | relation | Relation to Accounts. |
-| `Currency` | select | Current options: `HKD`, `USD`, `JPY`, `CNY`, `OTHER`. |
-| `Amount` | number | Signed or unsigned amount per workflow convention. |
-| `Movement Type` | select | Current options: `deposit`, `withdrawal`, `dividend`, `interest`, `fee`, `tax`, `adjustment`. |
-| `Occurred At` | date | Event timestamp. |
-| `Settlement Date` | date | Settlement date when applicable. |
-| `Related Trade` | relation | Optional relation to Trades. |
-| `Source` | rich_text | Import source label. |
-| `External ID` | rich_text | Source-system identifier for deduplication. |
-| `Notes` | rich_text | Optional movement notes. |
+| `Holding` | title | Ticker only (e.g. `NVDA`, `0700`) or `CASH`. Snapshot context comes from `Portfolio Snapshot` relation and `Snapshot Date` rollup. |
+| `Portfolio Snapshot` | relation | → `Portfolio Snapshot`. |
+| `Snapshot Date` | rollup | Roll up `Portfolio Snapshot.Snapshot Date`. |
+| `Holding Type` | select | `holding`, `cash`. |
+| `Ticker` | rich_text | Aligns with `Trading Proposals.Ticker`. Cash: `CASH`. |
+| `Company Name` | rich_text | Optional. |
+| `Market` | select | `HK`, `JP`, `US`, `OTHER`. |
+| `Asset Class` | select | `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `cash`, `other`. |
+| `Currency` | select | Quote or reporting currency. |
+| `Trade Type` | select | `long`, `short`, `n/a`. Cash: `n/a`. |
+| `Quantity` | number | Units held. Cash: balance. |
+| `Market Price` | number | Mark price. Empty for cash. |
+| `Market Value` | number | Holdings: `Quantity × Market Price`. Cash: = `Quantity`. |
 
-### Cash Movements Relations
-
-- `Cash Movements.Account`
-  - Type: relation
-  - Target: Accounts
-- `Cash Movements.Related Trade`
-  - Type: relation
-  - Target: Trades
-
-## Position Snapshots
-
-Purpose: periodic portfolio snapshots for reconciliation against broker or API data.
+### Planned vs actual prices
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Snapshot` | title | Human-readable label, typically `<symbol> <snapshot_date>`. |
-| `Account` | relation | Relation to Accounts. |
-| `Snapshot Date` | date | Snapshot as-of date. |
-| `Symbol` | rich_text | Tradable symbol or instrument identifier. |
-| `Market` | select | Current options: `HK`, `JP`, `US`, `OTHER`. |
-| `Asset Type` | select | Current options: `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `other`. |
-| `Currency` | select | Current options: `HKD`, `USD`, `JPY`, `CNY`, `OTHER`. |
-| `Quantity` | number | Position quantity at snapshot time. |
-| `Avg Cost` | number | Average cost when available. |
-| `Market Price` | number | Mark-to-market price at snapshot time. |
-| `Market Value` | number | Position market value at snapshot time. |
-| `Source` | rich_text | Import source label. |
-| `External ID` | rich_text | Source-system identifier for deduplication. |
-| `Notes` | rich_text | Optional snapshot notes. |
+| `Entry Price` | number | **Planned** entry / reference (from proposal or manual). |
+| `Average Cost` | number | **Actual** cost at capture. Optional. Not a ledger. |
+| `Stop Price` | number | Planned stop for risk-at-stop. |
+| `Target Price` | number | Planned target. |
 
-### Position Snapshots Relations
-
-- `Position Snapshots.Account`
-  - Type: relation
-  - Target: Accounts
-
-## Proposal Sizing
-
-Purpose: Layer 3 portfolio sizing output. Combines an accepted, price-enriched trading proposal with portfolio state to determine quantity, notional, and risk at stop. This database stores size only; pricing levels remain on `Trading Proposals`.
+### Thesis and provenance
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Sizing` | title | Human-readable label, typically `<proposal> sizing <sizing_as_of>`. |
-| `Proposal` | relation | Relation to Trading Proposals. |
-| `Account` | relation | Relation to Accounts. |
-| `Sizing As Of` | date | Timestamp when portfolio inputs were captured. |
-| `Portfolio NAV` | number | Portfolio net asset value at sizing time. |
-| `Cash Available` | number | Available cash at sizing time. |
-| `Entry Reference` | number | Copied from proposal pricing for audit at sizing time. |
-| `Stop Price` | number | Copied from proposal pricing for audit at sizing time. |
-| `Target 1` | number | Copied from proposal pricing for audit at sizing time. |
-| `Risk Budget Pct` | number | Portfolio risk budget allocated to this trade, as a percent of NAV. |
-| `Risk Budget Amount` | number | Portfolio risk budget allocated to this trade, in currency. |
-| `Quantity` | number | Sized quantity to order. |
-| `Notional` | number | Sized cash amount at entry reference. |
-| `Portfolio Weight Pct` | number | Sized position as a percent of NAV. |
-| `Max Loss At Stop` | number | Estimated loss if stop is hit at sized quantity. |
-| `Board Lots` | number | Rounded lot count for HK/JP workflows when applicable. |
-| `Sizing Status` | select | Current options: `ready`, `rejected`, `stale`. |
-| `Rejection Reason` | rich_text | Why sizing was rejected, if applicable. |
-| `Notes` | rich_text | Optional sizing notes. |
+| `Source Proposal` | relation | Optional → `Trading Proposals`. |
+| `Rationale` | rich_text | Why held; from proposal or manual. |
+| `Invalidation` | rich_text | Optional thesis-break summary. |
+| `Pricing As Of` | date | Optional; for `Market Price`. |
+| `Holding Source` | rich_text | Optional if snapshot `Source` is insufficient. |
+| `Notes` | rich_text | Optional. |
 
-### Proposal Sizing Relations
+### Portfolio Holdings Relations
 
-- `Proposal Sizing.Proposal`
-  - Type: relation
-  - Target: Trading Proposals
-- `Proposal Sizing.Account`
-  - Type: relation
-  - Target: Accounts
+- `Portfolio Holdings.Portfolio Snapshot` → `Portfolio Snapshot`
+- `Portfolio Holdings.Source Proposal` → `Trading Proposals` (optional)
+
+### Derived values (analyzer; not stored)
+
+| Derived | Rule |
+| --- | --- |
+| **Weight pct** | `Market Value` ÷ snapshot NAV × 100 |
+| **Risk at stop** | `long`: `Quantity × max(0, Entry − Stop)`; `short`: `Quantity × max(0, Stop − Entry)` |
+| **Risk at stop pct** | risk at stop ÷ NAV × 100 |
+| **Portfolio heat pct** | Σ risk at stop ÷ NAV × 100 |
+
+Use `Entry Price` and `Stop Price` for portfolio heat. `Average Cost` is informational unless a future workflow uses it explicitly.
+
+## Layer 3 — Portfolio Analysis (concept only)
+
+> Field-level Notion schema **TBD**. Layer 3 jointly optimizes eligible proposals against an **Approved Portfolio Snapshot** under [`Portfolio Policy`](../portfolio/guardrails.md). **Workflow ends** when **Target Portfolio Holdings** and **Rebalance Actions** are produced.
+
+### Inputs
+
+- Latest **Approved Portfolio Snapshot** and its **Portfolio Holdings**
+- Eligible `Trading Proposals` (`Accepted`, `Ready`, `Intent` = `Trade`, etc.)
+- Active `Portfolio Policy`
+
+### Outputs (Notion databases — TBD)
+
+| Database | Purpose |
+| --- | --- |
+| **Portfolio Analysis** | One analysis: inputs, policy audit, status, summary |
+| **Target Portfolio Holdings** | Recommended target portfolio (all tickers + cash + weights) |
+| **Rebalance Actions** | Suggested adjustments from current holdings → target (not execution ledger) |
+
+Whether rebalance actions are executed is **not tracked**. A later `Portfolio Snapshot` (on another date) reflects actual state if the user chooses to capture it.
+
+See guardrail evaluation order in [`../portfolio/guardrails.md`](../portfolio/guardrails.md).
 
 ## Cross-Database Flow
 
-Canonical proposal schema including Layer 2 pricing fields: `data/notion/research.md` (Trading Proposals section).
+Canonical proposal schema: [`research.md`](research.md) (Trading Proposals).
 
-1. Research outputs create or update `Trading Proposals` (Layer 1 qualitative fields).
-2. Alpha Vantage last close updates `Last Price` and `Quote As Of` on the proposal.
-3. An external process updates entry/stop/target pricing fields and sets `Pricing Status = Ready`.
-4. Portfolio sizing creates one `Proposal Sizing` row per accepted proposal and account when Layer 2 preconditions are met.
-5. Manual execution creates one `Trades` row linked to `Proposal Sizing` and optionally `Trading Proposals`.
-6. `Position Snapshots` and `Cash Movements` support reconciliation over time.
+1. Research follow-up imports Layer 1 into `Trading Proposals`.
+2. Alpha Vantage updates `Last Price` and `Quote As Of`.
+3. Pine Screener CSV populates Layer 2 prices and `Pricing Status = Ready` when applicable.
+4. User captures `Portfolio Snapshot` + `Portfolio Holdings`; sets `Status` = `approved` when ready.
+5. **Portfolio Analysis** reads Approved Portfolio Snapshot + eligible proposals + policy → **Target Portfolio Holdings** + **Rebalance Actions**.
+6. **Workflow ends.** No execution logging. A future snapshot on a new date is a separate capture cycle, not a follow-up step to step 5.
 
-## Proposal Sizing Preconditions
+```mermaid
+flowchart LR
+  TP[Trading Proposals<br/>L1 + L2]
+  APS[Approved Portfolio Snapshot<br/>+ Portfolio Holdings]
+  Policy[Portfolio Policy]
+  PA[Portfolio Analysis]
+  TPH[Target Portfolio Holdings]
+  RA[Rebalance Actions]
 
-Layer 3 runs only when the linked `Trading Proposals` row satisfies all of the following:
-
-| Requirement | Proposal field / source |
-| --- | --- |
-| Human approval | `Status` = `Accepted` |
-| Pricing complete | `Pricing Status` = `Ready` |
-| Entry reference | `Entry Reference` populated |
-| Stop level | `Stop Price` populated |
-| Primary target | `Target 1` populated |
-| Account selected | Target `Accounts` row for sizing |
-| Portfolio inputs | `Portfolio NAV`, `Cash Available` from latest `Position Snapshots`, approved manual inputs, or account-level summary |
-
-At sizing time, copy `Entry Reference`, `Stop Price`, and `Target 1` from the proposal onto the `Proposal Sizing` row as an audit snapshot. Do not re-derive pricing on the sizing row.
-
-After a successful sizing run:
-
-- Create or update the canonical `Proposal Sizing` row with `Sizing Status` = `ready`.
-- Mirror summary readiness on the linked proposal: `Sizing Status` = `Ready`.
-
-The proposal-level `Sizing Status` is a summary mirror only. Canonical sizing outputs (`Quantity`, `Notional`, `Max Loss At Stop`, etc.) live on `Proposal Sizing`.
+  TP --> PA
+  APS --> PA
+  Policy --> PA
+  PA --> TPH
+  PA --> RA
+```
 
 ## Reconstruction Order
 
-1. Create a database named `Accounts`.
-2. Add the `Accounts` properties listed above.
-3. Create a database named `Trades`.
-4. Add the non-relation `Trades` properties listed above.
-5. Add `Trades.Account`, `Trades.Proposal`, and `Trades.Proposal Sizing` relations.
-6. Create a database named `Cash Movements`.
-7. Add the non-relation `Cash Movements` properties listed above.
-8. Add `Cash Movements.Account` and `Cash Movements.Related Trade` relations.
-9. Create a database named `Position Snapshots`.
-10. Add the non-relation `Position Snapshots` properties listed above.
-11. Add `Position Snapshots.Account` relation.
-12. Create a database named `Proposal Sizing`.
-13. Add the non-relation `Proposal Sizing` properties listed above.
-14. Add `Proposal Sizing.Proposal` and `Proposal Sizing.Account` relations.
+1. Create `Portfolio Snapshot`; add properties above.
+2. Create `Portfolio Holdings`; add properties; relations to `Portfolio Snapshot` and optional `Source Proposal`.
+3. Configure `Portfolio Holdings.Snapshot Date` rollup from `Portfolio Snapshot`.
+4. Create `Portfolio Policy` per [`../portfolio/guardrails.md`](../portfolio/guardrails.md).
+5. Ensure `Trading Proposals` exists per [`research.md`](research.md).
+6. **(Later)** Add Layer 3: `Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions`.
