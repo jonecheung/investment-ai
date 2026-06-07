@@ -20,7 +20,7 @@ Related:
 
 ### Out of scope
 
-- Multiple accounts or account-level attribution (single portfolio only)
+- Multi-broker or sub-portfolio attribution (single portfolio only)
 - Executed buy/sell records, fees, taxes, settlement, or broker fill import
 - Deposit, withdrawal, dividend, or fee event ledgers
 - Trade-ledger-derived open positions
@@ -37,7 +37,7 @@ Related:
 
 ## Design Notes
 
-- **Single portfolio:** one implicit account. No `Accounts` database.
+- **Single portfolio:** no multi-broker or sub-portfolio attribution.
 - **Approved Portfolio Snapshot:** a `Portfolio Snapshot` row with `Status` = `approved`. The planner uses the latest by `Snapshot Date`.
 - Target storage: Notion databases.
 - Use Notion `number` for quantities, prices, and money values.
@@ -96,7 +96,7 @@ Purpose: **one row per holding or cash** within a `Portfolio Snapshot`. Input fo
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Holding` | title | Typically `<ticker> <snapshot_date>` or `CASH <snapshot_date>`. |
+| `Holding` | title | Ticker only (e.g. `NVDA`, `0700`) or `CASH`. Snapshot context comes from `Portfolio Snapshot` relation and `Snapshot Date` rollup. |
 | `Portfolio Snapshot` | relation | → `Portfolio Snapshot`. |
 | `Snapshot Date` | rollup | Roll up `Portfolio Snapshot.Snapshot Date`. |
 | `Holding Type` | select | `holding`, `cash`. |
