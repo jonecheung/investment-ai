@@ -10,17 +10,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fx_rates import FxError, build_fx_rates, resolve_holding_currency
-from guardrails import evaluate_guardrails, load_policy
+from guardrails import evaluate_guardrails, load_policy, policy_from_notion
 from metrics import compute_metrics
-from notion_fetch import NotionError, fetch_portfolio_snapshot, load_notion_token
+from notion_fetch import NotionError, fetch_active_portfolio_policy, fetch_portfolio_snapshot, load_notion_token
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
-
-
-def _default_policy_path() -> Path:
-    return _repo_root() / "data" / "portfolio" / "guardrails.yaml"
 
 
 def build_output(
@@ -58,8 +54,8 @@ def main() -> int:
     parser.add_argument(
         "--policy",
         type=Path,
-        default=_default_policy_path(),
-        help="Path to guardrails.yaml policy file",
+        default=None,
+        help="Optional YAML policy file override (default: active Portfolio Policy in Notion)",
     )
     parser.add_argument(
         "--snapshot-date",
@@ -103,11 +99,22 @@ def main() -> int:
 
         guardrail_check = None
         if not args.metrics_only:
-            policy = load_policy(args.policy)
+            if args.policy is not None:
+                policy = load_policy(args.policy)
+                policy_source = {"type": "yaml", "path": str(args.policy.resolve())}
+            else:
+                notion_policy = fetch_active_portfolio_policy(token)
+                policy = policy_from_notion(notion_policy)
+                policy_source = {
+                    "type": "notion",
+                    "id": notion_policy["id"],
+                    "title": notion_policy.get("title"),
+                    "effective_date": notion_policy.get("effective_date"),
+                }
             guardrail_check = evaluate_guardrails(
                 policy,
                 metrics_result["metrics"],
-                policy_path=str(args.policy),
+                policy_source=policy_source,
                 drawdown_pct=args.drawdown_pct,
             )
 

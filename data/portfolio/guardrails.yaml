@@ -1,15 +1,15 @@
 # Portfolio Guardrails — workspace template (initial suggestions)
 #
 # Purpose: hard limits and soft preferences for portfolio plan runs.
-# Status: DRAFT — replace suggested values with your own policy numbers.
+# Status: DRAFT template — runtime policy lives in Notion `Portfolio Policy`.
 #
 # Canonical Notion schema: data/portfolio/guardrails.md
 # Related: data/notion/portfolio.md, data/notion/research.md (Trading Proposals)
 #
-# Usage (future skill):
-#   1. Load active policy (Notion or this file)
-#   2. Snapshot guardrails onto each Portfolio Analysis for audit
-#   3. Apply hard_limits as constraints; soft_preferences as ranking/objective
+# Usage:
+#   1. Edit active policy in Notion (`Portfolio Policy`, Active=true)
+#   2. Use this file as a template for new policy rows or `--policy` YAML override
+#   3. Snapshot guardrails onto each Portfolio Analysis for audit
 
 schema_version: 1
 status: draft  # draft | active | archived

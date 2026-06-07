@@ -121,7 +121,7 @@ Layer 2 uses Alpha Vantage for `Last Price` only.
 
 | Layer | What | Where |
 | --- | --- | --- |
-| Layer 3 | Target portfolio + rebalance actions under guardrails | **Portfolio Analysis** → **Target Portfolio Holdings** + **Rebalance Actions** (schema TBD; see [`data/portfolio/guardrails.md`](data/portfolio/guardrails.md)) |
+| Layer 3 | Target portfolio + rebalance actions under guardrails | **Portfolio Analysis** → **Target Portfolio Holdings** + **Rebalance Actions** (see [`data/notion/portfolio.md`](data/notion/portfolio.md)) |
 
 Layer 3 inputs: latest **Approved Portfolio Snapshot**, eligible proposals, and active **Portfolio Policy**. Workflow ends at analysis outputs. No trade logging or rebalance execution tracking in this workspace.
 
@@ -180,7 +180,7 @@ Before saving any data into the workspace, the assistant should summarize what w
 
 ## Notion Portfolio Schema Plan
 
-Portfolio planning lives in Notion. The schema targets a **single portfolio** with daily snapshot capture and **Portfolio Analysis**. Layer 3 output schemas are TBD; see [`data/portfolio/guardrails.md`](data/portfolio/guardrails.md).
+Portfolio planning lives in Notion. The schema targets a **single portfolio** with daily snapshot capture and **Portfolio Analysis**. Layer 3 schemas: [`data/notion/portfolio.md`](data/notion/portfolio.md).
 
 The snapshot schema is at [`data/notion/portfolio.md`](data/notion/portfolio.md). The canonical `Trading Proposals` schema is in [`data/notion/research.md`](data/notion/research.md).
 
@@ -190,7 +190,7 @@ Databases (current):
 - `Portfolio Holdings`: holdings and cash for each snapshot — `Ticker`, quantity, market price/value, planned prices, optional `Average Cost`, optional `Source Proposal`.
 - `Portfolio Policy`: guardrails — [`data/portfolio/guardrails.md`](data/portfolio/guardrails.md).
 
-Future (Layer 3, schema TBD): `Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions`.
+- `Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions`: Layer 3 outputs — [`data/notion/portfolio.md`](data/notion/portfolio.md).
 
 Out of scope:
 
