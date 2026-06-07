@@ -82,7 +82,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - For Notion operations, prefer Notion REST API via `curl`.
 - For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for global indices plus Japan and US market data.
 - For deep research operations, prefer `parallel-cli`.
-- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `import-screener-pricing`, `fastio-cli`, `refresh-proposal-quotes`, `refresh-workspace`
+- Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `import-screener-pricing`, `fastio-cli`, `refresh-proposal-quotes`, `evaluate-portfolio-guardrails`, `refresh-workspace`
 - CLI: `parallel-cli`, `fastio`, `git`, `npx skills`
 - Direct API via `curl`: Notion API, Alpha Vantage API, Parallel Task API, TradingView symbol search
 - MCP tools are secondary by default in this workspace.
@@ -146,5 +146,6 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `import-screener-pricing`: use to download Pine Screener `screener*.csv` files from a per-run Fast.io session and import Layer 2 price fields into Notion `Trading Proposals` for rows where `Pricing Status` is not `Ready` (writes by default; use `--dry-run` to preview only).
 - `fastio-cli`: use for basic Fast.io cloud file operations (list, create folders, upload, download, search) and per-run Trading Proposals session storage (`trading-proposals/sessions/<YYYY-MM-DD>-<run_id>/` with `watchlist.txt` and `screener*.csv`); resolves workspace and folders by name (`FASTIO_WORKSPACE_NAME`).
 - `refresh-proposal-quotes`: use to fetch Alpha Vantage last daily close for `Trading Proposals` and update Notion `Last Price` and `Quote As Of` via curl (writes by default; use `--dry-run` to preview only).
+- `evaluate-portfolio-guardrails`: use to compute portfolio heat, concentration, cash, and exposure metrics from the latest Approved Portfolio Snapshot in Notion and check against `data/portfolio/guardrails.yaml` (read-only).
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.
