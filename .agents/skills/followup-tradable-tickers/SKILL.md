@@ -145,7 +145,7 @@ parallel-cli research status "$INPUT_ID" --json
 6. Build the follow-up prompt and schema:
    - Use `data/parallel/prompt-followup-tradable-tickers.md` as the instruction source.
    - Include the resolved `INTERACTION_ID`.
-   - Default `focus_markets` to `HK`, `JP`, and `US`.
+   - Default `focus_markets` to `FX_MAJOR`, `FX_CROSS`, and `FX_EM`.
    - Default `analysis_timeframe` to `mixed`.
    - Keep the input focused on the research task; schema enforcement belongs in `task_spec.output_schema`, not only in prompt text.
    - Do not provide personalized investment advice, position sizing, or trade execution instructions.

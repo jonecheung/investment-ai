@@ -6,8 +6,8 @@ from typing import Any
 
 from fx_rates import convert_to_base, resolve_holding_currency
 
-MARKET_KEYS = ("HK", "JP", "US", "OTHER")
-ASSET_CLASS_KEYS = ("equity", "etf", "crypto")
+MARKET_KEYS = ("FX_MAJOR", "FX_CROSS", "FX_EM", "OTHER")
+ASSET_CLASS_KEYS = ("fx", "equity", "etf", "crypto")
 
 
 def _is_cash(holding: dict[str, Any]) -> bool:

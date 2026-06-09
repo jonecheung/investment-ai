@@ -110,12 +110,12 @@ def build_effective_limits(
         "hard_limits.max_portfolio_heat_pct": float(hard["max_portfolio_heat_pct"]),
     }
 
-    for market in ("HK", "JP", "US", "OTHER"):
+    for market in ("FX_MAJOR", "FX_CROSS", "FX_EM", "OTHER"):
         value = _get_nested(policy, "market_limits", market, "max_exposure_pct")
         if value is not None:
             effective[f"market_limits.{market}.max_exposure_pct"] = float(value)
 
-    for asset_class in ("equity", "etf", "crypto"):
+    for asset_class in ("fx", "equity", "etf", "crypto"):
         value = _get_nested(policy, "asset_class_limits", asset_class, "max_exposure_pct")
         if value is not None:
             effective[f"asset_class_limits.{asset_class}.max_exposure_pct"] = float(value)
@@ -192,7 +192,7 @@ def evaluate_guardrails(
     )
 
     market_exposure = metrics.get("market_exposure_pct") or {}
-    for market in ("HK", "JP", "US", "OTHER"):
+    for market in ("FX_MAJOR", "FX_CROSS", "FX_EM", "OTHER"):
         key = f"market_limits.{market}.max_exposure_pct"
         if key in effective_limits:
             add_check(
@@ -203,7 +203,7 @@ def evaluate_guardrails(
             )
 
     asset_exposure = metrics.get("asset_class_exposure_pct") or {}
-    for asset_class in ("equity", "etf", "crypto"):
+    for asset_class in ("fx", "equity", "etf", "crypto"):
         key = f"asset_class_limits.{asset_class}.max_exposure_pct"
         if key in effective_limits:
             add_check(

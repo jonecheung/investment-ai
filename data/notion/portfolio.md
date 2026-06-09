@@ -28,7 +28,7 @@ Related:
 - Trade-ledger-derived average cost history (`Portfolio Holdings` may store point-in-time `Average Cost` from broker capture only)
 - Tracking whether rebalance actions were executed (inferred only when a later `Portfolio Snapshot` is submitted)
 - Automated order placement or post-trade reconciliation against fills
-- Board-lot rounding for order submission (HK/JP lot constraints)
+- Pip/tick rounding and minimum lot size for broker submission
 
 ### Excluded from this document
 
@@ -96,14 +96,14 @@ Purpose: **one row per holding or cash** within a `Portfolio Snapshot`. Input fo
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Holding` | title | Ticker only (e.g. `NVDA`, `0700`) or `CASH`. Snapshot context comes from `Portfolio Snapshot` relation and `Snapshot Date` rollup. |
+| `Holding` | title | Pair symbol only (e.g. `EURUSD`, `GBPJPY`) or `CASH`. Snapshot context comes from `Portfolio Snapshot` relation and `Snapshot Date` rollup. |
 | `Portfolio Snapshot` | relation | → `Portfolio Snapshot`. |
 | `Snapshot Date` | rollup | Roll up `Portfolio Snapshot.Snapshot Date`. |
 | `Holding Type` | select | `holding`, `cash`. |
 | `Ticker` | rich_text | Aligns with `Trading Proposals.Ticker`. Cash: `CASH`. |
 | `Company Name` | rich_text | Optional. |
-| `Market` | select | `HK`, `JP`, `US`, `OTHER`. |
-| `Asset Class` | select | `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `cash`, `other`. |
+| `Market` | select | `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `OTHER`. |
+| `Asset Class` | select | `fx`, `future`, `option`, `bond`, `equity`, `etf`, `crypto`, `cash`, `other`. Primary focus: `fx`. |
 | `Currency` | select | Quote or reporting currency. |
 | `Trade Type` | select | `long`, `short`, `n/a`. Cash: `n/a`. |
 | `Quantity` | number | Units held. Cash: balance. |
@@ -255,14 +255,14 @@ Purpose: **one row per planned line** (ticker or cash) in the target portfolio f
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Holding` | title | Ticker only (e.g. `NVDA`, `0700`) or `CASH`. |
+| `Holding` | title | Pair symbol only (e.g. `EURUSD`, `GBPJPY`) or `CASH`. |
 | `Portfolio Analysis` | relation | → `Portfolio Analysis`. |
 | `Analysis Date` | rollup | Roll up `Portfolio Analysis.Analysis Date`. Function: `show_original`. |
 | `Ticker` | rich_text | Aligns with `Trading Proposals.Ticker`. Cash: `CASH`. |
 | `Company Name` | rich_text | Optional. |
 | `Holding Type` | select | `holding`, `cash`. |
-| `Market` | select | `HK`, `JP`, `US`, `OTHER`. |
-| `Asset Class` | select | `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `cash`, `other`. |
+| `Market` | select | `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `OTHER`. |
+| `Asset Class` | select | `fx`, `future`, `option`, `bond`, `equity`, `etf`, `crypto`, `cash`, `other`. Primary focus: `fx`. |
 | `Currency` | select | Quote currency for quantity / local prices. |
 | `Trade Type` | select | `long`, `short`, `n/a`. Cash: `n/a`. |
 
@@ -326,7 +326,7 @@ Purpose: **suggested adjustments** from input snapshot holdings → target portf
 | `Portfolio Analysis` | relation | → `Portfolio Analysis`. |
 | `Analysis Date` | rollup | Roll up `Portfolio Analysis.Analysis Date`. Function: `show_original`. |
 | `Ticker` | rich_text | Aligns with target / snapshot ticker. Cash: `CASH`. |
-| `Market` | select | `HK`, `JP`, `US`, `OTHER`. |
+| `Market` | select | `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `OTHER`. |
 | `Currency` | select | Quote currency for quantity deltas. |
 
 #### Action
@@ -465,8 +465,8 @@ Use these option sets wherever the schema references the same labels:
 | Property context | Options |
 | --- | --- |
 | `Base Currency`, `Currency` | `HKD`, `USD`, `JPY`, `CNY`, `OTHER` |
-| `Market` | `HK`, `JP`, `US`, `OTHER` |
-| `Asset Class` | `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `cash`, `other` |
+| `Market` | `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `OTHER` |
+| `Asset Class` | `fx`, `future`, `option`, `bond`, `equity`, `etf`, `crypto`, `cash`, `other` |
 | `Trade Type` | `long`, `short`, `n/a` |
 | `Holding Type` | `holding`, `cash` |
 

@@ -110,8 +110,8 @@ Top-level keys:
 | `cash_pct` | Cash market value / NAV × 100 |
 | `max_single_holding_pct` | Max non-cash weight |
 | `portfolio_heat_pct` | Σ risk-at-stop (base currency) / NAV × 100 |
-| `market_exposure_pct` | Weights by `Market` (HK/JP/US/OTHER) |
-| `asset_class_exposure_pct` | Weights by `Asset Class` (equity/etf/crypto) |
+| `market_exposure_pct` | Weights by `Market` (FX_MAJOR/FX_CROSS/FX_EM/OTHER) |
+| `asset_class_exposure_pct` | Weights by `Asset Class` (fx/equity/etf/crypto) |
 
 ### Guardrail checks (v1)
 

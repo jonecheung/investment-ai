@@ -29,7 +29,7 @@ This is planning support only. Do not present output as personalized investment 
 ## Prerequisites
 
 - `NOTION_API_TOKEN` in environment or `.env`
-- `FXRATESAPI_API_KEY` optional (FX-adjusted risk-at-stop for JP/US lines)
+- `FXRATESAPI_API_KEY` optional (FX-adjusted risk-at-stop for non-USD quote pairs)
 - Notion: `Portfolio Snapshot`, `Portfolio Holdings`, `Portfolio Policy`, Layer 3 DBs (`Portfolio Analysis`, `Target Portfolio Holdings`, `Rebalance Actions`)
 - At least one **Approved Portfolio Snapshot**
 - Active **Portfolio Policy** row (unless `--policy` YAML override)

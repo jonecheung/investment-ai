@@ -565,7 +565,7 @@ def run_planner(
     max_risk_line_pct = max_risk_per_line_nav_pct(policy, regime_info)
     max_risk_line = nav * max_risk_line_pct / 100.0
     heat_step = nav * RISK_STEP_PCT / 100.0
-    base_currency = policy.get("base_currency") or "HKD"
+    base_currency = policy.get("base_currency") or "USD"
 
     notes: list[str] = []
     fit_rejections: list[dict[str, Any]] = []
@@ -751,14 +751,14 @@ def _failed_checks(
     if metrics.get("holdings_count", 0) > effective_limits["hard_limits.max_holdings_count"]:
         failures.append("max_holdings_count")
 
-    for market in ("HK", "JP", "US", "OTHER"):
+    for market in ("FX_MAJOR", "FX_CROSS", "FX_EM", "OTHER"):
         key = f"market_limits.{market}.max_exposure_pct"
         if key in effective_limits:
             exp = (metrics.get("market_exposure_pct") or {}).get(market, 0.0)
             if exp > effective_limits[key]:
                 failures.append(key)
 
-    for ac in ("equity", "etf", "crypto"):
+    for ac in ("fx", "equity", "etf", "crypto"):
         key = f"asset_class_limits.{ac}.max_exposure_pct"
         if key in effective_limits:
             exp = (metrics.get("asset_class_exposure_pct") or {}).get(ac, 0.0)

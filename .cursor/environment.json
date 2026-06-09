@@ -1,0 +1,3 @@
+{
+  "install": "sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq python3-venv >/dev/null 2>&1 || true; .agents/skills/evaluate-portfolio-guardrails/scripts/run.sh --help >/dev/null 2>&1 || true; .agents/skills/run-portfolio-analysis/scripts/run.sh --help >/dev/null 2>&1 || true"
+}

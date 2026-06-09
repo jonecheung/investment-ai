@@ -84,19 +84,22 @@
         "additionalProperties": false,
         "properties": {
           "ticker": {
-            "type": "string"
+            "type": "string",
+            "description": "Currency pair symbol without separator, e.g. EURUSD, GBPJPY."
           },
           "company_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable pair or instrument name, e.g. Euro / US Dollar."
           },
           "asset_class": {
             "type": "string",
             "enum": [
+              "fx",
+              "future",
+              "option",
               "equity",
               "etf",
               "bond",
-              "future",
-              "option",
               "crypto",
               "other"
             ]
@@ -104,9 +107,9 @@
           "market": {
             "type": "string",
             "enum": [
-              "HK",
-              "JP",
-              "US",
+              "FX_MAJOR",
+              "FX_CROSS",
+              "FX_EM",
               "OTHER"
             ]
           },

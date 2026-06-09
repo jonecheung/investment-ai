@@ -18,14 +18,14 @@ status: draft  # draft | active | archived
 
 policy_name: default
 effective_date: null  # YYYY-MM-DD when activated; null while draft
-base_currency: HKD     # reporting currency for NAV, cash, and risk budgets
+base_currency: USD     # reporting currency for NAV, cash, and risk budgets (common FX desk default)
 
 # --- Tier 1: Hard limits (planner must satisfy) ---
 
 hard_limits:
   # Concentration
-  max_single_holding_pct: 12.0       # max weight for one symbol in target portfolio
-  max_holdings_count: 10             # max distinct non-cash positions
+  max_single_holding_pct: 15.0       # max weight for one pair in target portfolio
+  max_holdings_count: 8              # max distinct non-cash FX positions
 
   # Cash buffer
   min_cash_pct: 5.0                  # minimum cash weight after plan
@@ -42,28 +42,30 @@ hard_limits:
   max_turnover_pct: 25.0             # max % of NAV traded (buy+sell) in one plan
 
 # --- Market exposure caps (weight-based, on target portfolio) ---
-# Limits apply to sum of Market Value weights by Trading Proposals.Market / snapshot Market.
-# Suggested starter set for HK + JP + US coverage; adjust to your policy.
+# Limits apply to sum of Market Value weights by Trading Proposals.Market.
+# Suggested starter set for a tactical FX book.
 
 market_limits:
-  HK:
-    max_exposure_pct: 50.0
-  JP:
-    max_exposure_pct: 30.0
-  US:
+  FX_MAJOR:
     max_exposure_pct: 70.0
+  FX_CROSS:
+    max_exposure_pct: 40.0
+  FX_EM:
+    max_exposure_pct: 20.0
   OTHER:
-    max_exposure_pct: 15.0
+    max_exposure_pct: 10.0
 
 # --- Asset class caps (optional; weight-based) ---
 
 asset_class_limits:
+  fx:
+    max_exposure_pct: 95.0
   equity:
-    max_exposure_pct: 90.0
+    max_exposure_pct: 0.0
   etf:
-    max_exposure_pct: 40.0
+    max_exposure_pct: 0.0
   crypto:
-    max_exposure_pct: 10.0
+    max_exposure_pct: 0.0
 
 # --- Tier 2: Soft preferences (optimization objective, not hard reject) ---
 
@@ -119,8 +121,8 @@ planner:
 # --- Notes (human-readable policy context; not used by planner) ---
 
 notes: |
-  Initial suggested defaults for a single-account, tactical HK/JP/US portfolio.
-  Based on common IPS concentration limits (~5–15% single name) and trading
-  portfolio-heat practice (~6% total risk at stop, ~1–2% per position).
+  Initial suggested defaults for a single-account, tactical FX portfolio focused on
+  G10 majors, crosses, and selective EM FX. Based on common portfolio-heat practice
+  (~6% total risk at stop, ~1–2% per position) and FX diversification by bucket.
 
   Review and replace all numeric values before marking status: active.

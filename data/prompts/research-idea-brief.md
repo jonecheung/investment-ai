@@ -10,8 +10,8 @@ The brief should help a buy-side style research workflow test whether the idea i
 
 - `original_idea`: Raw investment idea entered by the user.
 - `analysis_window`: Time range for the research brief. Default: last 7 days.
-- `focus_markets`: Target markets when specified. Default: Hong Kong, Japan, and US.
-- `asset_focus`: Target asset classes when specified. Default: equities, derivatives, ETFs, and crypto assets.
+- `focus_markets`: Target FX buckets when specified. Default: G10 majors, G10 crosses, and EM FX (`FX_MAJOR`, `FX_CROSS`, `FX_EM`).
+- `asset_focus`: Target asset classes when specified. Default: forex (spot FX) and FX-related derivatives.
 
 ## Task
 
@@ -24,18 +24,18 @@ Keep the brief specific, falsifiable, and evidence-seeking. Prioritize the quest
 Focus strictly on these five sections:
 
 1. Thesis clarity and variant view
-2. Industry and macro regime
-3. Management and governance
+2. Macro regime and cross-asset transmission
+3. Policy, central banks, and positioning
 4. Catalysts and timing
 5. Risk and downside
 
 Apply these cross-cutting checks in every section:
 
-- policy, regulation, and legal shifts
-- sanctions, export controls, and cross-border constraints
-- election and geopolitical tension scenarios
-- rates, inflation, FX, liquidity, and volatility regime changes
-- crowding, correlation, and positioning risks during stress
+- central bank reaction functions, forward guidance, and policy divergence
+- rates, inflation, real yields, carry, and term-premium shifts
+- FX liquidity, intervention risk, and volatility regime changes
+- positioning, crowding, CTA/systematic flows, and dealer gamma where relevant
+- geopolitical, sanctions, and cross-border capital-flow scenarios
 
 ## Constraints
 
@@ -53,8 +53,8 @@ Apply these cross-cutting checks in every section:
 Return a Markdown brief using exactly these sections:
 
 1. `## Thesis Clarity And Variant View`
-2. `## Industry And Macro Regime`
-3. `## Management And Governance`
+2. `## Macro Regime And Cross-Asset Transmission`
+3. `## Policy, Central Banks, And Positioning`
 4. `## Catalysts And Timing`
 5. `## Risk And Downside`
 6. `## Source Priorities`
@@ -67,23 +67,23 @@ For `## Thesis Clarity And Variant View`, include:
 - consensus view versus variant view
 - decisive disconfirming evidence
 
-For `## Industry And Macro Regime`, include:
+For `## Macro Regime And Cross-Asset Transmission`, include:
 
-- industry structure and cycle phase
-- key macro drivers and transmission channels
-- base regime versus adverse regime implications
+- growth, inflation, and liquidity regime
+- key macro drivers and transmission channels into FX
+- base regime versus adverse regime implications for the relevant pairs
 
-For `## Management And Governance`, include:
+For `## Policy, Central Banks, And Positioning`, include:
 
-- capital allocation and execution track record
-- incentive alignment, ownership, governance quality, and disclosure credibility
-- governance concerns that reduce conviction
+- central bank stance, credibility, and reaction-function asymmetry
+- rate-path and balance-sheet implications
+- positioning, flow, and positioning-risk context that reduces or supports conviction
 
 For `## Catalysts And Timing`, include:
 
-- concrete catalysts and impact mechanisms
+- concrete catalysts (data releases, central bank meetings, fiscal events, geopolitical windows) and impact mechanisms
 - expected timing windows and dependency chain
-- whether the thesis is near-term catalyst-driven or long-duration
+- whether the thesis is near-term catalyst-driven or longer-duration carry/structural
 
 For `## Risk And Downside`, include:
 

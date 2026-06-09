@@ -107,10 +107,22 @@ If multiple selectors are supplied, process the union of matched rows and dedupl
 
 | Market | Rule | Example |
 | --- | --- | --- |
-| `US` | use `Ticker` as-is | `NVDA` → `NVDA` |
-| `HK` | zero-pad numeric tickers to 4 digits, append `.HK` | `700` → `0700.HK`, `0700` → `0700.HK` |
-| `JP` | append `.T` | `7203` → `7203.T` |
-| `OTHER` | use `Ticker` as-is; report ambiguity | — |
+| `FX_MAJOR`, `FX_CROSS`, `FX_EM` | parse 6-letter pair into `from_symbol` / `to_symbol`; call `FX_DAILY` | `EURUSD` → EUR/USD |
+| `OTHER` | same pair parsing when `Asset Class` = `fx`; otherwise use `Ticker` as-is | — |
+
+   - For FX pairs, fetch with:
+
+```bash
+curl -sG "https://www.alphavantage.co/query" \
+  --data-urlencode "function=FX_DAILY" \
+  --data-urlencode "from_symbol=${FROM_SYMBOL}" \
+  --data-urlencode "to_symbol=${TO_SYMBOL}" \
+  --data-urlencode "outputsize=compact" \
+  --data-urlencode "apikey=${ALPHAVANTAGE_API_KEY}"
+```
+
+   - Extract latest bar from `"Time Series FX (Daily)"` using the same close-field pattern as equities.
+   - Legacy equity markets (`US`, `HK`, `JP`) are out of default scope; use only when explicitly requested.
 
    - Trim whitespace from tickers before normalization.
    - Record `lookup_source` as `instrument_id` or `normalized`.

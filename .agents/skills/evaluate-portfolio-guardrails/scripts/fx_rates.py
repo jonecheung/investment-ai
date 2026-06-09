@@ -14,9 +14,10 @@ FXRATESAPI_URL = "https://api.fxratesapi.com/latest"
 FXRATESAPI_DOCS = "https://fxratesapi.com/docs/endpoints/latest-exchange-rates"
 
 MARKET_DEFAULT_CURRENCY: dict[str, str] = {
-    "HK": "HKD",
-    "US": "USD",
-    "JP": "JPY",
+    "FX_MAJOR": "USD",
+    "FX_CROSS": "USD",
+    "FX_EM": "USD",
+    "OTHER": "USD",
 }
 
 

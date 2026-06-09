@@ -25,7 +25,7 @@ This skill is **read-only for Notion**. It writes one local watchlist file and, 
 - Output directory: `data/tradingview/`
 - Output filename: `YYYY-MM-DD-<run_id>.txt` where `<run_id>` is the resolved run id verbatim (e.g. `trun_abc123`)
 - Local watchlist files are **gitignored** (`data/tradingview/*.txt`); do not commit them. Fast.io `watchlist.txt` is the durable per-run copy when Fast.io upload is enabled.
-- Watchlist sections: `###HK`, `###JP`, `###US`, `###OTHER` by proposal `Market`
+- Watchlist sections: `###FX_MAJOR`, `###FX_CROSS`, `###FX_EM`, `###OTHER` by proposal `Market`
 - No scanner / validator step after resolve
 - No Notion writes
 - Fast.io session path: `trading-proposals/sessions/<EXPORT_DATE>-<RUN_ID>/`
@@ -109,16 +109,15 @@ All inputs are optional.
 
 | `Market` | `text` normalization | `exchange` param | extra params |
 | --- | --- | --- | --- |
-| `HK` | strip `.HK`; if all digits, remove leading zeros | `HKEX` | `search_type=stock` |
-| `JP` | strip `.T` suffix | `TSE` | `search_type=stock`, `country=JP` |
-| `US` | use ticker as-is | map from `Exchange` when it contains `NASDAQ`, `NYSE`, or `AMEX`; otherwise omit | `search_type` from asset class, `country=US`, `sort_by_country=US` |
+| `FX_MAJOR`, `FX_CROSS`, `FX_EM` | use pair as-is (e.g. `EURUSD`) | omit | `search_type=forex` |
 | `OTHER` | use ticker as-is | map from `Exchange` when recognizable; otherwise omit | `search_type` from asset class |
 
    - `search_type` mapping from `Asset Class`:
+     - `fx` → `forex`
      - `equity` → `stock`
      - `etf` → `etf`
      - `crypto` → `crypto`
-     - default → `stock`
+     - default → `forex`
    - `Exchange` → TV `exchange` param (case-insensitive substring match):
 
 | If `Exchange` contains | TV `exchange` param |
@@ -167,20 +166,20 @@ curl -sG "https://symbol-search.tradingview.com/symbol_search/v3/" \
    - Sleep 1 second before the next TradingView request.
 
 7. Build watchlist content:
-   - Group resolved `TV_ID` values by proposal `Market` in this order: `HK`, `JP`, `US`, `OTHER`.
+   - Group resolved `TV_ID` values by proposal `Market` in this order: `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `OTHER`.
    - Within each section, sort tickers alphabetically by `TV_ID` and deduplicate exact duplicates.
    - Format:
 
 ```text
-###HK
-HKEX:700
-HKEX:9988
+###FX_MAJOR
+FX:EURUSD
+FX:GBPUSD
 
-###US
-NASDAQ:NVDA
+###FX_CROSS
+FX:EURJPY
 ```
 
-   - Use the literal section headers `###HK`, `###JP`, `###US`, `###OTHER` even when a section has only one symbol.
+   - Use the literal section headers `###FX_MAJOR`, `###FX_CROSS`, `###FX_EM`, `###OTHER` even when a section has only one symbol.
    - Omit empty sections entirely.
    - Do not include unresolved or ambiguous rows in the `.txt` file.
 

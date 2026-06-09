@@ -54,8 +54,8 @@ Use either:
 
 | Property | Type | Suggested starter | Notes |
 | --- | --- | --- | --- |
-| `Max Single Holding Pct` | number | 12 | Max target weight for one ticker (%) |
-| `Max Holdings Count` | number | 10 | Max non-cash positions |
+| `Max Single Holding Pct` | number | 15 | Max target weight for one pair (%) |
+| `Max Holdings Count` | number | 8 | Max non-cash FX positions |
 
 #### Hard Limits — Cash
 
@@ -77,18 +77,19 @@ Use either:
 
 | Property | Type | Suggested starter | Maps to |
 | --- | --- | --- | --- |
-| `Max HK Exposure Pct` | number | 50 | `Market` = HK |
-| `Max JP Exposure Pct` | number | 30 | `Market` = JP |
-| `Max US Exposure Pct` | number | 70 | `Market` = US |
-| `Max Other Exposure Pct` | number | 15 | `Market` = OTHER |
+| `Max FX Major Exposure Pct` | number | 70 | `Market` = FX_MAJOR |
+| `Max FX Cross Exposure Pct` | number | 40 | `Market` = FX_CROSS |
+| `Max FX EM Exposure Pct` | number | 20 | `Market` = FX_EM |
+| `Max Other Exposure Pct` | number | 10 | `Market` = OTHER |
 
 #### Hard Limits — Asset Class (optional)
 
 | Property | Type | Suggested starter | Maps to |
 | --- | --- | --- | --- |
-| `Max Equity Exposure Pct` | number | 90 | `Asset Class` = equity |
-| `Max ETF Exposure Pct` | number | 40 | `Asset Class` = etf |
-| `Max Crypto Exposure Pct` | number | 10 | `Asset Class` = crypto |
+| `Max FX Exposure Pct` | number | 95 | `Asset Class` = fx |
+| `Max Equity Exposure Pct` | number | 0 | `Asset Class` = equity |
+| `Max ETF Exposure Pct` | number | 0 | `Asset Class` = etf |
+| `Max Crypto Exposure Pct` | number | 0 | `Asset Class` = crypto |
 
 #### Soft Preferences
 
@@ -143,10 +144,11 @@ Use either:
 | `hard_limits.max_portfolio_heat_pct` | `Max Portfolio Heat Pct` |
 | `hard_limits.min_reward_risk_ratio` | `Min Reward Risk Ratio` |
 | `hard_limits.max_turnover_pct` | `Max Turnover Pct` |
-| `market_limits.HK.max_exposure_pct` | `Max HK Exposure Pct` |
-| `market_limits.JP.max_exposure_pct` | `Max JP Exposure Pct` |
-| `market_limits.US.max_exposure_pct` | `Max US Exposure Pct` |
+| `market_limits.FX_MAJOR.max_exposure_pct` | `Max FX Major Exposure Pct` |
+| `market_limits.FX_CROSS.max_exposure_pct` | `Max FX Cross Exposure Pct` |
+| `market_limits.FX_EM.max_exposure_pct` | `Max FX EM Exposure Pct` |
 | `market_limits.OTHER.max_exposure_pct` | `Max Other Exposure Pct` |
+| `asset_class_limits.fx.max_exposure_pct` | `Max FX Exposure Pct` |
 | `soft_preferences.objective` | `Objective` |
 | `soft_preferences.conviction_weights.*` | `Conviction Weight High/Medium/Low` |
 | `regime_overrides.drawdown_from_peak.*` | `Drawdown Trigger Pct`, multipliers, floor |

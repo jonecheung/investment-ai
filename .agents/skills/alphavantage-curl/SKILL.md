@@ -1,18 +1,28 @@
 ---
 name: alphavantage-curl
-description: Query Alpha Vantage market data with curl. Use when the user asks for Alpha Vantage, Core Stock API, stock time series, quotes, symbol search, listing status, or Index Data API lookups using curl.
+description: Query Alpha Vantage market data with curl. Use when the user asks for Alpha Vantage FX rates, FX daily/intraday series, currency exchange endpoints, or (when explicitly requested) stock/index lookups using curl.
 disable-model-invocation: true
 ---
 
 # Alpha Vantage Curl
 
-Use this skill to query Alpha Vantage with `curl`, focused on Core Stock API and Index Data API workflows.
+Use this skill to query Alpha Vantage with `curl`, focused on **FX and currency endpoints** for this workspace. Stock and index endpoints are secondary and only when explicitly requested.
 
 This skill is for data retrieval and research support only. Do not present retrieved data as personalized investment advice.
 
 ## Scope
 
-Supported initial scope:
+Supported primary scope:
+
+- FX / currency endpoints:
+  - `FX_DAILY`
+  - `FX_INTRADAY`
+  - `CURRENCY_EXCHANGE_RATE`
+  - `FX_WEEKLY`
+  - `FX_MONTHLY`
+- Pair convention: parse `EURUSD` as `from_symbol=EUR`, `to_symbol=USD` unless the user specifies otherwise.
+
+Supported secondary scope (explicit request only):
 
 - Core Stock API:
   - `TIME_SERIES_INTRADAY`
@@ -33,7 +43,7 @@ Out of scope unless explicitly requested:
 
 - Company fundamentals
 - Technical indicators
-- FX, crypto, economic indicators, news, options, commodities
+- Crypto, economic indicators, news, options, commodities
 - SDKs, Python wrappers, MCP integrations
 
 ## Authentication

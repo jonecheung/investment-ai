@@ -71,7 +71,7 @@ def main() -> int:
         policy, policy_source = _load_policy(token, args.policy)
         eligible, filter_rejections, candidate_count = fetch_trading_proposals(token, policy)
 
-        base_currency = snapshot.get("base_currency") or policy.get("base_currency") or "HKD"
+        base_currency = snapshot.get("base_currency") or policy.get("base_currency") or "USD"
         currencies = {
             resolve_holding_currency(h)
             for h in holdings

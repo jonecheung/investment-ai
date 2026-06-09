@@ -377,14 +377,21 @@ def fetch_active_portfolio_policy(token: str) -> dict[str, Any]:
             "max_turnover_pct": _number(props.get("Max Turnover Pct")),
         },
         "market_limits": {
-            "HK": {"max_exposure_pct": _number(props.get("Max HK Exposure Pct"))},
-            "JP": {"max_exposure_pct": _number(props.get("Max JP Exposure Pct"))},
-            "US": {"max_exposure_pct": _number(props.get("Max US Exposure Pct"))},
+            "FX_MAJOR": {
+                "max_exposure_pct": _number(props.get("Max FX Major Exposure Pct"))
+            },
+            "FX_CROSS": {
+                "max_exposure_pct": _number(props.get("Max FX Cross Exposure Pct"))
+            },
+            "FX_EM": {
+                "max_exposure_pct": _number(props.get("Max FX EM Exposure Pct"))
+            },
             "OTHER": {
                 "max_exposure_pct": _number(props.get("Max Other Exposure Pct"))
             },
         },
         "asset_class_limits": {
+            "fx": {"max_exposure_pct": _number(props.get("Max FX Exposure Pct"))},
             "equity": {
                 "max_exposure_pct": _number(props.get("Max Equity Exposure Pct"))
             },

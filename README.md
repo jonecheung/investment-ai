@@ -38,16 +38,15 @@ Weekend/weekday rhythm:
 
 Covered product types:
 
-- Equities
-- Derivatives
-- ETFs
-- Crypto assets
+- Forex (spot FX pairs) — primary focus
+- FX-related derivatives (for example FX options or CFDs) when explicitly requested
+- Equities, ETFs, and crypto are secondary and only when the user explicitly expands scope
 
 Covered markets:
 
-- Hong Kong
-- Japan
-- United States
+- G10 majors (for example EURUSD, GBPUSD, USDJPY)
+- G10 crosses (for example EURJPY, GBPJPY)
+- EM FX (for example USDMXN, USDTRY)
 
 ## High-Level Data Flow
 
@@ -117,7 +116,7 @@ Handoffs:
 2. Alpha Vantage last close populates `Last Price` and `Quote As Of` (`refresh-proposal-quotes`).
 3. Pine Screener CSV exports from Fast.io populate `Entry Price`, `Stop Price`, `Target Price`, and derived `Reward Risk Ratio`, then set `Pricing Status = Ready` (`import-screener-pricing`; rows where `Pricing Status` is not `Ready`).
 
-Layer 2 uses Alpha Vantage for `Last Price` only.
+Layer 2 uses Alpha Vantage for `Last Price` only (FX pairs via `FX_DAILY`; stock endpoints only when explicitly requested).
 
 | Layer | What | Where |
 | --- | --- | --- |

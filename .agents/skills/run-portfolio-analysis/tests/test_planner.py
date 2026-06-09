@@ -76,12 +76,12 @@ class TestUniverseMerge(unittest.TestCase):
         holdings = [
             {
                 "page_id": "h1",
-                "ticker": "NVDA",
+                "ticker": "EURUSD",
                 "holding_type": "holding",
                 "market_value": 100000,
                 "quantity": 100,
-                "market": "US",
-                "asset_class": "equity",
+                "market": "FX_MAJOR",
+                "asset_class": "fx",
                 "trade_type": "long",
                 "entry_price": 200,
                 "stop_price": 180,
@@ -90,9 +90,9 @@ class TestUniverseMerge(unittest.TestCase):
         proposals = [
             {
                 "page_id": "p1",
-                "ticker": "NVDA",
-                "market": "US",
-                "asset_class": "equity",
+                "ticker": "EURUSD",
+                "market": "FX_MAJOR",
+                "asset_class": "fx",
                 "conviction": "high",
                 "entry_price": 205,
                 "stop_price": 184,
@@ -100,7 +100,7 @@ class TestUniverseMerge(unittest.TestCase):
                 "reward_risk_ratio": 2.5,
             }
         ]
-        positions = [{"ticker": "NVDA", "risk_at_stop": 2000}]
+        positions = [{"ticker": "EURUSD", "risk_at_stop": 2000}]
         universe = build_universe(holdings, proposals, positions, {"high": 3, "medium": 2, "low": 1})
         self.assertEqual(len(universe), 1)
         self.assertEqual(universe[0].line_source, "merged")
@@ -137,21 +137,20 @@ class TestRebalance(unittest.TestCase):
 class TestCurrencyAlignment(unittest.TestCase):
     def test_sync_line_from_risk_converts_usd_risk_to_base(self):
         line = LineCandidate(
-            ticker="TSM",
+            ticker="EURUSD",
             line_source="proposal",
-            market="US",
+            market="FX_MAJOR",
             currency="USD",
-            entry_price=100.0,
-            stop_price=90.0,
-            reference_price=100.0,
+            entry_price=1.10,
+            stop_price=1.00,
+            reference_price=1.10,
             trade_type="long",
             target_risk_at_stop=10_000.0,
         )
-        fx = {"base_currency": "HKD", "rates": {"HKD": 1.0, "USD": 7.8}}
-        sync_line_from_risk(line, 1_000_000.0, fx, "HKD")
-        risk_local = 10_000.0 / 7.8
-        expected_qty = risk_local / 10.0
-        expected_mv_base = expected_qty * 100.0 * 7.8
+        fx = {"base_currency": "USD", "rates": {"USD": 1.0, "EUR": 0.92}}
+        sync_line_from_risk(line, 1_000_000.0, fx, "USD")
+        expected_qty = 10_000.0 / 0.10
+        expected_mv_base = expected_qty * 1.10
         self.assertAlmostEqual(line.target_quantity, expected_qty)
         self.assertAlmostEqual(line.target_market_value, expected_mv_base)
 
@@ -160,13 +159,13 @@ class TestCurrencyAlignment(unittest.TestCase):
 
         nav = 1_000_000.0
         line = LineCandidate(
-            ticker="TSM",
+            ticker="EURUSD",
             line_source="proposal",
-            market="US",
+            market="FX_MAJOR",
             currency="USD",
-            entry_price=100.0,
-            stop_price=90.0,
-            reference_price=100.0,
+            entry_price=1.10,
+            stop_price=1.00,
+            reference_price=1.10,
             trade_type="long",
             included=True,
             target_risk_at_stop=10_000.0,
@@ -181,16 +180,16 @@ class TestCurrencyAlignment(unittest.TestCase):
             {"nav": nav, "base_currency": "HKD"},
             [
                 {
-                    "ticker": "TSM",
+                    "ticker": "EURUSD",
                     "holding_type": "holding",
-                    "market": "US",
+                    "market": "FX_MAJOR",
                     "currency": "USD",
-                    "asset_class": "equity",
+                    "asset_class": "fx",
                     "trade_type": "long",
                     "quantity": line.target_quantity,
                     "market_value": line.target_market_value,
-                    "entry_price": 100.0,
-                    "stop_price": 90.0,
+                    "entry_price": 1.10,
+                    "stop_price": 1.00,
                 }
             ],
             fx=fx,
@@ -254,7 +253,7 @@ class TestTurnover(unittest.TestCase):
 class TestPlannerIntegration(unittest.TestCase):
     def _sample_policy(self, **overrides) -> dict:
         policy = {
-            "base_currency": "HKD",
+            "base_currency": "USD",
             "hard_limits": {
                 "max_holdings_count": 10,
                 "min_cash_pct": 3,
@@ -266,12 +265,12 @@ class TestPlannerIntegration(unittest.TestCase):
                 "min_reward_risk_ratio": 2,
             },
             "market_limits": {
-                "HK": {"max_exposure_pct": 50},
-                "JP": {"max_exposure_pct": 30},
-                "US": {"max_exposure_pct": 70},
-                "OTHER": {"max_exposure_pct": 15},
+                "FX_MAJOR": {"max_exposure_pct": 70},
+                "FX_CROSS": {"max_exposure_pct": 40},
+                "FX_EM": {"max_exposure_pct": 20},
+                "OTHER": {"max_exposure_pct": 10},
             },
-            "asset_class_limits": {"equity": {"max_exposure_pct": 95}},
+            "asset_class_limits": {"fx": {"max_exposure_pct": 95}},
             "soft_preferences": {
                 "objective": "maximize_conviction_weighted_reward_risk",
                 "conviction_weights": {"high": 3, "medium": 2, "low": 1},
@@ -289,8 +288,8 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="LOW",
                 line_source="incumbent",
-                market="US",
-                asset_class="equity",
+                market="FX_MAJOR",
+                asset_class="fx",
                 entry_price=100,
                 stop_price=90,
                 reference_price=100,
@@ -307,8 +306,8 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="HIGH",
                 line_source="incumbent",
-                market="US",
-                asset_class="equity",
+                market="FX_MAJOR",
+                asset_class="fx",
                 entry_price=100,
                 stop_price=90,
                 reference_price=100,
@@ -328,8 +327,8 @@ class TestPlannerIntegration(unittest.TestCase):
             "cash_pct": 5.0,
             "portfolio_heat_pct": 9.5,
             "max_single_holding_pct": 75,
-            "market_exposure_pct": {"US": 95, "HK": 0, "JP": 0, "OTHER": 0},
-            "asset_class_exposure_pct": {"equity": 95, "etf": 0, "crypto": 0},
+            "market_exposure_pct": {"FX_MAJOR": 95, "FX_CROSS": 0, "FX_EM": 0, "OTHER": 0},
+            "asset_class_exposure_pct": {"fx": 95, "equity": 0, "etf": 0, "crypto": 0},
         }
         guardrail_input = {"summary": {"pass": False}, "regime": {"drawdown_pct": None}}
         from metrics import compute_metrics
@@ -389,9 +388,9 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="WEAK",
                 line_source="incumbent",
-                market="HK",
-                asset_class="equity",
-                currency="HKD",
+                market="FX_CROSS",
+                asset_class="fx",
+                currency="JPY",
                 entry_price=100,
                 stop_price=90,
                 reference_price=100,
@@ -408,8 +407,8 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="STRONG",
                 line_source="incumbent",
-                market="US",
-                asset_class="equity",
+                market="FX_MAJOR",
+                asset_class="fx",
                 currency="USD",
                 entry_price=100,
                 stop_price=90,
@@ -425,10 +424,10 @@ class TestPlannerIntegration(unittest.TestCase):
                 included=True,
             ),
             LineCandidate(
-                ticker="TSM",
+                ticker="GBPUSD",
                 line_source="proposal",
-                market="US",
-                asset_class="equity",
+                market="FX_MAJOR",
+                asset_class="fx",
                 currency="USD",
                 entry_price=400,
                 stop_price=380,
@@ -449,8 +448,8 @@ class TestPlannerIntegration(unittest.TestCase):
             "cash_pct": 10.0,
             "portfolio_heat_pct": 9.0,
             "max_single_holding_pct": 70,
-            "market_exposure_pct": {"US": 70, "HK": 20, "JP": 0, "OTHER": 0},
-            "asset_class_exposure_pct": {"equity": 90, "etf": 0, "crypto": 0},
+            "market_exposure_pct": {"FX_MAJOR": 70, "FX_CROSS": 20, "FX_EM": 0, "OTHER": 0},
+            "asset_class_exposure_pct": {"fx": 90, "equity": 0, "etf": 0, "crypto": 0},
         }
         guardrail_input = {"summary": {"pass": False}, "regime": {"drawdown_pct": None}}
         from metrics import compute_metrics
@@ -468,7 +467,7 @@ class TestPlannerIntegration(unittest.TestCase):
         self.assertEqual(plan.status, "completed")
         by_ticker = {line.ticker: line for line in plan.lines}
         self.assertLess(by_ticker["WEAK"].target_market_value, 200_000)
-        self.assertGreater(by_ticker["TSM"].target_market_value, 0)
+        self.assertGreater(by_ticker["GBPUSD"].target_market_value, 0)
 
     def test_swap_adds_proposal_when_input_feasible(self):
         nav = 1_000_000.0
@@ -476,8 +475,8 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="WEAK",
                 line_source="incumbent",
-                market="HK",
-                asset_class="equity",
+                market="FX_CROSS",
+                asset_class="fx",
                 entry_price=100,
                 stop_price=90,
                 reference_price=100,
@@ -494,8 +493,8 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="CORE",
                 line_source="incumbent",
-                market="US",
-                asset_class="equity",
+                market="FX_MAJOR",
+                asset_class="fx",
                 entry_price=100,
                 stop_price=90,
                 reference_price=100,
@@ -512,8 +511,8 @@ class TestPlannerIntegration(unittest.TestCase):
             LineCandidate(
                 ticker="NEW",
                 line_source="proposal",
-                market="US",
-                asset_class="equity",
+                market="FX_MAJOR",
+                asset_class="fx",
                 entry_price=200,
                 stop_price=190,
                 reference_price=200,
@@ -533,8 +532,8 @@ class TestPlannerIntegration(unittest.TestCase):
             "cash_pct": 10.0,
             "portfolio_heat_pct": 5.0,
             "max_single_holding_pct": 80,
-            "market_exposure_pct": {"US": 80, "HK": 10, "JP": 0, "OTHER": 0},
-            "asset_class_exposure_pct": {"equity": 90, "etf": 0, "crypto": 0},
+            "market_exposure_pct": {"FX_MAJOR": 80, "FX_CROSS": 10, "FX_EM": 0, "OTHER": 0},
+            "asset_class_exposure_pct": {"fx": 90, "equity": 0, "etf": 0, "crypto": 0},
         }
         guardrail_input = {"summary": {"pass": True}, "regime": {"drawdown_pct": None}}
         from metrics import compute_metrics

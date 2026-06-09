@@ -26,8 +26,8 @@ Purpose: planning backlog and opportunity pipeline.
 | `Status` | select | Lifecycle state. Current options: `New`, `Expanded`, `Queued`, `Running`, `Completed`. |
 | `Active` | checkbox | Controls scheduler eligibility. |
 | `Run Frequency` | select | Recurrence cadence. Current options: `Once`, `Daily`, `Weekly`, `Biweekly`, `Monthly`, `Quarterly`. |
-| `Market Tags` | multi_select | Market scope labels. Current options: `HK`, `JP`, `US`, `CN`, `Global`. |
-| `Asset Type Tags` | multi_select | Asset class labels. Current options: `Equity`, `ETF`, `Derivatives`, `Crypto`, `FX`. |
+| `Market Tags` | multi_select | FX scope labels. Current options: `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `Global Macro`. |
+| `Asset Type Tags` | multi_select | Asset class labels. Primary: `FX`. Secondary (only when explicitly requested): `Derivatives`, `Crypto`. |
 | `Strategy Tags` | multi_select | Strategy/theme labels. Current options: `Momentum`, `Contrarian`, `Macro`, `Flow`, `Event-driven`. |
 | `Last Run ID` | rich_text | Most recent provider run ID linked to this idea. |
 | `Last Run At` | date | Timestamp of latest completed run for this idea. |
@@ -145,12 +145,12 @@ These fields existed on the v1 `Trading Proposals` table. They are removed from 
 
 | Property | Type | Notes |
 | --- | --- | --- |
-| `Proposal` | title | Human-readable label, typically `<ticker> <trade_type>`. |
-| `Ticker` | rich_text | Tradable symbol or instrument identifier from research. |
-| `Instrument ID` | rich_text | Broker-validated symbol; may be filled during review. |
-| `Company Name` | rich_text | Company, ETF, asset, or instrument name. |
-| `Market` | select | `HK`, `JP`, `US`, `OTHER`. |
-| `Asset Class` | select | `equity`, `etf`, `bond`, `future`, `option`, `crypto`, `other`. |
+| `Proposal` | title | Human-readable label, typically `<pair> <trade_type>`. |
+| `Ticker` | rich_text | Currency pair symbol (e.g. `EURUSD`, `GBPJPY`) or instrument identifier from research. |
+| `Instrument ID` | rich_text | Broker-validated symbol; may be filled during review (e.g. `FX:EURUSD`). |
+| `Company Name` | rich_text | Pair or instrument name (e.g. `Euro / US Dollar`). |
+| `Market` | select | `FX_MAJOR`, `FX_CROSS`, `FX_EM`, `OTHER`. |
+| `Asset Class` | select | `fx`, `future`, `option`, `bond`, `equity`, `etf`, `crypto`, `other`. Primary focus: `fx`. |
 | `Exchange` | rich_text | Trading venue or exchange. |
 | `Currency` | rich_text | Trading or quote currency. |
 | `Intent` | select | `Trade`, `Watchlist`, `Hedge`. |
@@ -180,7 +180,7 @@ These fields existed on the v1 `Trading Proposals` table. They are removed from 
 | Property | Type | Source | Notes |
 | --- | --- | --- | --- |
 | `Quote As Of` | date | Alpha Vantage | Last-close date. |
-| `Last Price` | number | Alpha Vantage | Last close in quote currency. |
+| `Last Price` | number | Alpha Vantage | Last FX close or spot rate in quote terms. |
 | `Entry Price` | number | External process | Single planned entry price. |
 | `Stop Price` | number | External process | Hard invalidation price. |
 | `Target Price` | number | External process | Single take-profit price. |

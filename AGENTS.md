@@ -7,9 +7,9 @@ This workspace is for personal investment research, planning, and assistant work
 These defaults control how the assistant should reason, prioritize, and communicate in this workspace.
 
 - Default user-facing language: Hong Kong Traditional Chinese (unless user asks otherwise).
-- Default market coverage: Hong Kong, Japan, and US.
-- Default asset focus: equities, derivatives, ETFs, and crypto assets.
-- When market conventions differ by region, always state market, currency, trading venue, timezone, and regulatory context.
+- Default market coverage: G10 majors, G10 crosses, and EM FX (`FX_MAJOR`, `FX_CROSS`, `FX_EM`).
+- Default asset focus: forex (spot FX) and FX-related derivatives; equities, ETFs, and crypto are out of scope unless the user explicitly asks.
+- When market conventions differ by pair or session, always state currency pair, quote/base convention, pip or tick size, primary session, liquidity window, and broker/symbol mapping.
 - Apply weekend/weekday operating rhythm:
   - Weekend (Research Mode): generate ideas, run research, identify opportunities, and formulate plans.
   - Weekday (Execution Mode): prioritize execution, adjustments, and risk/trigger monitoring based on existing plans.
@@ -80,7 +80,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 - Prefer relevant project skills first when available.
 - Default execution priority: CLI tools -> direct API calls via `curl` -> MCP tools (fallback, or when explicitly requested).
 - For Notion operations, prefer Notion REST API via `curl`.
-- For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for global indices plus Japan and US market data.
+- For Alpha Vantage market data lookups, prefer the `alphavantage-curl` skill and direct `curl` requests, especially for FX rates, FX daily/intraday series, and currency exchange endpoints.
 - For deep research operations, prefer `parallel-cli`.
 - Skills: `alphavantage-curl`, `notion-api`, `parallel-deep-research`, `expand-new-ideas`, `run-expanded-ideas-deep-research`, `poll-deep-research-runs`, `followup-tradable-tickers`, `export-tv-watchlist`, `create-tv-pine-screener`, `import-screener-pricing`, `fastio-cli`, `refresh-proposal-quotes`, `evaluate-portfolio-guardrails`, `run-portfolio-analysis`, `refresh-workspace`
 - CLI: `parallel-cli`, `fastio`, `git`, `npx skills`
@@ -134,7 +134,7 @@ For recurring opportunity scans, `Research Ideas` should use:
 
 ### Skill Purpose In This Workspace (High Level)
 
-- `alphavantage-curl`: use for Alpha Vantage Core Stock API and Index Data API lookups with `curl`, especially for global indices, Japan market data, and US market data, including stock time series, latest quotes, symbol search, and listing status.
+- `alphavantage-curl`: use for Alpha Vantage FX and currency endpoints with `curl` (primary), including `FX_DAILY`, `FX_INTRADAY`, and `CURRENCY_EXCHANGE_RATE`; stock/index endpoints only when the user explicitly requests non-FX data.
 - `notion-api`: use for building and maintaining the Notion research operating system (database structure, operational fields, and workflow documentation pages).
 - `parallel-deep-research`: use for deep thematic research runs (primarily weekend research mode), including run tracking and summary capture.
 - `expand-new-ideas`: use to transform eligible Notion `Research Ideas` from raw `Original Idea` entries into research-ready `Research Input` before execution.
@@ -150,3 +150,56 @@ For recurring opportunity scans, `Research Ideas` should use:
 - `run-portfolio-analysis`: use to run Layer 3 portfolio planning (unified rank + swap optimizer) from Notion snapshot, policy, and eligible Trading Proposals; JSON dry-run by default, `--write` for Notion Layer 3 outputs.
 - `refresh-workspace`: use to refresh workspace rules, data context, skill inventory, local configuration, and git state in read-only mode.
 - Use this section for workspace intent only; follow each skill's own documentation for execution details and API/CLI specifics.
+
+## Cursor Cloud specific instructions
+
+This workspace is an **agent-orchestrated integration layer**, not a deployable application. There is no `npm run dev`, Docker stack, project-wide linter, or always-on server. "Running the app" means invoking Agent Skills via Cursor (or their `run.sh` / `curl` steps) against configured external APIs.
+
+### Runtime and dependencies
+
+- **Required system tools:** `curl`, `jq`, `python3` (3.9+), `git`, `npx` (for `npx skills list` and `ajv-cli` in follow-up workflows).
+- **Python venv:** Portfolio skills auto-create skill-local `.venv/` on first `run.sh` invocation. If venv creation fails with `ensurepip` errors, install `python3-venv` once on the VM (`apt install python3-venv`).
+- **Auth:** Cloud Agents receive API keys via Cursor **Secrets** (environment variables). A repo `.env` is optional locally; cloud agents should **not** rely on a committed `.env`. Scripts fall back to repo-root `.env` only when env vars are unset.
+- **Optional CLIs:** `parallel-cli` (Parallel research polling) and `fastio` (`npm install -g @vividengine/fastio-cli`). Skills work without them via direct `curl`.
+- **Environment bootstrap:** `.cursor/environment.json` installs `jq`, `python3-venv`, and warms portfolio skill venvs on agent startup.
+
+### Required Cursor Secrets (cloud)
+
+Add these in [cursor.com/dashboard → Cloud Agents → Secrets](https://cursor.com/dashboard):
+
+| Secret | Required |
+| --- | --- |
+| `NOTION_API_TOKEN` | Yes |
+| `PARALLEL_API_KEY` | Yes (deep research) |
+| `FASTIO_API_KEY` | Yes (screener import / watchlist sessions) |
+| `FASTIO_WORKSPACE_NAME` | Yes (e.g. `General`) |
+| `ALPHAVANTAGE_API_KEY` | Optional (FX quote refresh) |
+| `FXRATESAPI_API_KEY` | Optional (portfolio FX risk conversion) |
+
+Never commit secrets. Do not snapshot `.env` into a cloud environment image.
+
+### Smoke tests (no Notion writes)
+
+```bash
+# Portfolio planner unit tests (no API keys)
+PYTHONPATH=".agents/skills/evaluate-portfolio-guardrails/scripts:.agents/skills/run-portfolio-analysis/scripts" \
+  python3 .agents/skills/run-portfolio-analysis/tests/test_planner.py -v
+
+# Bootstrap portfolio skill venvs (idempotent)
+.agents/skills/evaluate-portfolio-guardrails/scripts/run.sh --help >/dev/null
+.agents/skills/run-portfolio-analysis/scripts/run.sh --help >/dev/null
+```
+
+### Notion integration scope
+
+The Notion bot must be **shared with each database** the skill needs. Portfolio skills search for `Portfolio Snapshot`, `Portfolio Holdings`, and `Portfolio Policy`. Research workflows need at minimum `Research Ideas`, `Research Runs`, and `Trading Proposals`. If a data source is not shared with the integration, skills exit with `Could not find Notion data source` even when `NOTION_API_TOKEN` is valid.
+
+### Portfolio skills (read-only by default)
+
+```bash
+.agents/skills/evaluate-portfolio-guardrails/scripts/run.sh --out /tmp/metrics.json
+.agents/skills/run-portfolio-analysis/scripts/run.sh --out /tmp/plan.json   # JSON dry-run; --write for Notion
+```
+
+No local services need to be started. Layer 2 Pine Screener CSV import requires manual TradingView desktop export unless the user uploads `screener*.csv` to Fast.io.
+
