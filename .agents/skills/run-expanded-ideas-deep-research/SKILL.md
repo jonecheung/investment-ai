@@ -54,7 +54,10 @@ Find eligible `Research Ideas` records (`Status = Expanded`, `Active = true`, an
 6. Run deep research for each matched idea (one-by-one):
    - Use `.agents/skills/parallel-deep-research` procedure.
    - Use each idea's `Research Input` as the deep-research input.
-   - Use `parallel-cli research run "<Research Input>" --processor ultra --no-wait --json`.
+   - **Processor selection:**
+     - If `Original Idea` starts with `Daily FX strategy brief` (case-insensitive): use `--processor pro-fast`.
+     - Otherwise: use `--processor ultra`.
+   - Command: `parallel-cli research run "<Research Input>" --processor <tier> --no-wait --json`.
    - `--no-wait` is required so the command returns immediately and can be polled separately.
    - Capture and retain:
      - `run_id`

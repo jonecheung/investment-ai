@@ -2,36 +2,39 @@
 
 ## Purpose
 
-Minimal `Original Idea` text for Notion `Research Ideas` when scheduling the daily Parallel strategy brief.
+Minimal Notion input for the **daily Parallel strategy selector**. The agent expands this into full `Research Input` automatically.
 
-## Notion Row Settings
+## Notion row template
 
 | Property | Value |
 | --- | --- |
-| `Original Idea` | See template below |
+| `Original Idea` | `Daily FX strategy brief — {YYYY-MM-DD}` |
 | `Run Frequency` | `Daily` |
-| `Active` | `true` |
+| `Active` | ✅ true |
+| `Status` | `New` (until expanded) |
 | `Market Tags` | `FX_MAJOR`, `FX_CROSS` |
 | `Asset Type Tags` | `FX` |
-| `Strategy Tags` | `Momentum` (or leave empty) |
 
-## Original Idea Template
+Example title: `Daily FX strategy brief — 2026-06-16`
 
-```
-Daily FX strategy brief — {YYYY-MM-DD}
-```
+## What expand-new-ideas does
 
-Example: `Daily FX strategy brief — 2026-06-16`
+When `Original Idea` matches `Daily FX strategy brief — {date}`:
 
-## Research Input Expansion
+1. Reads **Research Prompt** from `data/parallel/prompt-daily-fx-strategy-brief.md` (content between `---` fences under `## Research Prompt`).
+2. Substitutes `{YYYY-MM-DD}` with the date from the title.
+3. Writes result to `Research Input` and sets `Status` = `Expanded`.
 
-When expanding to `Research Input`, prepend the trade date and append the full system prompt:
+No manual prompt paste required after expansion.
 
-1. Open `data/parallel/prompt-daily-fx-strategy-brief.md`
-2. Set `trade_date` and `focus_pairs` at the top of the task section
-3. Store the combined text in `Research Input`
-4. Run via `parallel-cli research run` with processor `pro-fast`
+## What run-expanded-ideas does
 
-## Expected Output
+For daily brief ideas: kicks off Parallel with `--processor pro-fast` (not `ultra`).
 
-Parallel returns which **Template ID** to use per pair (`T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, or `T0_NO_TRADE`) plus Pine filenames. See `data/parallel/output-daily-fx-strategy-brief.json`.
+## Expected output
+
+- Markdown sections including **Executive Summary** and **Priority Execution Queue**
+- JSON with per-pair `template_id`: `T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, or `T0_NO_TRADE`
+- Pine filenames under `data/tradingview/`
+
+Schema: `data/parallel/output-daily-fx-strategy-brief.json`

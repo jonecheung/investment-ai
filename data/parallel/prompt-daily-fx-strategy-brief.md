@@ -2,203 +2,201 @@
 
 ## Purpose
 
-Produce a **same-day execution brief** that classifies the current FX market regime for each focus pair and **recommends exactly one strategy template** (or explicit no-trade) from the approved workspace playbook.
+Same-day execution brief: classify FX regime per pair and **recommend exactly one strategy template** (or no-trade) from the approved workspace playbook.
 
-This prompt is designed for **weekday execution mode** (Mon–Fri, pre-London). Output feeds `Research Ideas` → `Research Runs` → human review → Pine Screener / manual execution. It is research framing only, not trade instructions or personalized investment advice.
+- **Notion `Original Idea`:** `Daily FX strategy brief — {YYYY-MM-DD}`
+- **Notion settings:** `Run Frequency = Daily`, `Active = true`
+- **Processor:** `pro-fast` (not `ultra` — daily brief needs calendar + recent context, not exhaustive research)
+- **Schedule:** Weekdays **05:00–06:30 UTC** (before Asian range locks 07:00 UTC)
+- **Output schema:** `data/parallel/output-daily-fx-strategy-brief.json`
 
-## When To Run
+## Workflow
 
-- **Schedule:** Daily, **05:00–06:30 UTC** (before Asian range locks at 07:00 UTC).
-- **Notion:** `Research Ideas` row with `Run Frequency = Daily`, `Active = true`.
-- **Processor:** `pro-fast` (needs current calendar + recent market context). Use `lite` only as a follow-up with `--previous-interaction-id` from the same morning run.
-- **Original Idea (minimal user input):** `Daily FX strategy brief — {YYYY-MM-DD}`
+1. Create or activate Notion `Research Ideas` row with today's Original Idea.
+2. Run `expand-new-ideas` — auto-fills `Research Input` from **Research Prompt** below when Original Idea matches `Daily FX strategy brief`.
+3. Run `run-expanded-ideas-deep-research` — uses `pro-fast` for daily brief ideas.
+4. Poll with `poll-deep-research-runs`; read `Executive Summary` + JSON `template_id` per pair.
+5. Open recommended Pine strategy on TradingView for London session.
 
-## Inputs
+## CLI (manual)
 
-- `trade_date`: Today's date in UTC (YYYY-MM-DD).
-- `focus_pairs`: Default `EURUSD`, `GBPUSD`, `USDJPY`, `EURJPY`.
-- `session_anchor`: UTC. Default primary sessions: Asian `0000-0700`, London `0700-1600`, NY `1200-2100`, overlap `1200-1600`.
-- `cost_assumption`: ECN-style majors, ~0.8–1.2 pip round-turn equivalent.
-- `prior_playbook_interaction_id`: Optional. Prior deep-research interaction ID for scenario playbook context (intraday FX scenario × strategy matrix).
-
-## Approved Strategy Template Registry
-
-Recommend **only** templates from this registry. Do not invent new strategy names.
-
-| Template ID | Strategy Name | Scenario | Chart TF | Entry Session (UTC) | Pine Screener | Pine Strategy | Tier | Default Pairs |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `T1_PULLBACK` | D1-Bias EMA Pullback | Strong trend day | H1 | 0700-1400 | `d1-bias-ema-pullback-forex.pine` | `d1-bias-ema-pullback-forex-strategy.pine` | PRIMARY | EURUSD, GBPUSD, USDJPY |
-| `T2_FALSE_BREAKOUT` | Asian False Breakout Reversion | Range / mean-reversion day | M15 | 0700-1200 | `asian-false-breakout-reversion-forex.pine` | `asian-false-breakout-reversion-forex-strategy.pine` | PRIMARY | EURUSD, GBPUSD |
-| `T3_EXPANSION` | Volatility-Compression Expansion | Expansion / post-compression day | M15 | 0715-1400 | `vol-compression-expansion-forex.pine` | `vol-compression-expansion-forex-strategy.pine` | SECONDARY | EURUSD, USDJPY, EURJPY |
-| `T4_SWING_BACKUP` | Supertrend + 200 EMA Long | Multi-day swing (not intraday primary) | 1D | N/A | `supertrend-ema-atr-long.pine` | — | BACKUP | majors when intraday blocked |
-| `T0_NO_TRADE` | No Trade / Cash Mode | Holiday, event, drift, insufficient edge | — | — | — | — | BLOCK | all |
-
-**Deprioritized — do not recommend unless user explicitly revalidated:**
-
-| Template ID | Reason |
-| --- | --- |
-| `ARCHIVE_ORB` | Generic 15m ORB underperformed after costs (PF ~0.5–0.7) |
-| `ARCHIVE_LONDON_BO` | Plain London/Asian breakout PF ~0.26–0.76 without narrow-range filters |
-
-## Scenario Taxonomy (classify before recommending)
-
-For each focus pair, assign **one primary scenario** (1–8):
-
-1. **Strong trend day** — ADX elevated, D1 EMA slope aligned, directional prior day
-2. **Weak trend / drift day** — ADX 15–25, flat EMA, indecisive D1
-3. **Range / mean-reversion day** — ADX < 20, low D1 ATR percentile, narrow expected Asian range
-4. **Expansion / breakout day** — D1 volatility compression (BB/Keltner squeeze), coiling at range edge
-5. **High-impact event day** — NFP, CPI, FOMC, ECB, etc. on calendar today
-6. **Risk-on / risk-off shock** — DXY + VIX co-directional spike (if detectable from recent data)
-7. **Low-liquidity / holiday** — regional holiday or thin session expected
-8. **Cross-pair divergence** — EURUSD vs GBPUSD leadership mismatch (filter only, not standalone entry)
-
-## Task
-
-For `trade_date` and each pair in `focus_pairs`:
-
-1. **Check calendar and liquidity:** flag holidays, high-impact events, and pairs affected.
-2. **Classify scenario** using D1 context (trend, volatility, compression, event risk) and what is knowable pre-07:00 UTC.
-3. **Apply decision tree** (below) to select **one** `Template ID`.
-4. **State D1 bias:** `Long`, `Short`, or `Neutral` (intraday direction constraint for T1).
-5. **State confidence:** `High`, `Medium`, or `Low` with one-line rationale.
-6. **List watch conditions** for London open (07:00 UTC): e.g. Asian range width target, ADX confirmation, spread check.
-7. **Explicit do-not-trade rules** when recommending `T0_NO_TRADE`.
-
-## Decision Tree (mandatory logic)
-
-Apply in order for each pair:
-
-1. Holiday or thin liquidity expected? → `T0_NO_TRADE`
-2. High-impact event today affecting this pair (±2h of release)? → `T0_NO_TRADE` (or note post-event fade as observation only — still default `T0_NO_TRADE` for retail)
-3. D1 strong trend signals (ADX > 25, EMA slope aligned, directional prior day)? → `T1_PULLBACK`
-4. D1 range regime (ADX < 20, low ATR percentile)? → if Asian range likely **20–35 pips** (EURUSD proxy) → `T2_FALSE_BREAKOUT`; else if range too wide/narrow → `T0_NO_TRADE` or wait
-5. D1 squeeze / compression (BB inside Keltner ≥ 2 bars, low ATR pct)? → `T3_EXPANSION`
-6. Drift day (ADX 15–25, no squeeze)? → `T0_NO_TRADE` (default skip)
-7. Cross-pair divergence only? → use as **filter** on T1/T2; do not assign standalone template
-8. If ambiguous → `T0_NO_TRADE` and explain missing data
-
-**Pair priority when templates conflict:** EURUSD first for T1/T2; USDJPY for risk-off context; EURJPY only for T3 when expansion expected.
-
-## Analysis Requirements
-
-- Use **current** economic calendar for `trade_date` ( cite source ).
-- Separate **FACT** (calendar, prior close, published ranges) from **ASSUMPTION** (expected Asian range, scenario persistence) from **OPINION** (confidence).
-- ADX is for **scenario classification only** — do not recommend ADX threshold as entry filter (FX evidence: ADX filter can reduce PF).
-- Include spread/cost awareness: deprioritize intraday on wide-spread crosses unless T3 with large expected range.
-- Do not claim guaranteed profitability. Frame as conditional playbook selection.
-- If live prices unavailable, state gaps and recommend conservative `T0_NO_TRADE`.
-
-## Constraints
-
-- Recommend only registry `Template ID` values.
-- At most **one primary template per pair** per day.
-- Do not recommend `ARCHIVE_*` templates.
-- Do not provide position sizing, lot size, or account-specific advice.
-- Do not output raw JSON in the markdown body unless Output Format requests a fenced JSON block.
-- Keep `Executive Summary` ≤ 300 words.
-
-## Output Format
-
-Return Markdown with **exactly** these sections:
-
-### 1. `## Executive Summary`
-
-≤ 300 words. Answer: **What should we trade today, with which template, or should we sit out?**
-
-### 2. `## Today's Market Context`
-
-- UTC date and day of week
-- Global liquidity / holiday flags
-- Scheduled high-impact events (time UTC, affected pairs)
-- Risk-on/off snapshot if relevant (DXY, VIX direction — cite source)
-
-### 3. `## Pair Recommendations`
-
-One subsection per focus pair:
-
-```markdown
-### {PAIR} (e.g. EURUSD)
-
-| Field | Value |
-| --- | --- |
-| Scenario | {1–8 name} |
-| Template ID | {T0_NO_TRADE \| T1_PULLBACK \| T2_FALSE_BREAKOUT \| T3_EXPANSION \| T4_SWING_BACKUP} |
-| Strategy Name | {from registry} |
-| D1 Bias | Long / Short / Neutral |
-| Confidence | High / Medium / Low |
-| Chart TF | {H1 / M15 / 1D} |
-| Entry Session UTC | {from registry or N/A} |
-| Pine Screener | {filename or —} |
-| Pine Strategy | {filename or —} |
-
-**Rationale:** {2–4 sentences}
-
-**London open checklist (07:00 UTC):**
-- {bullet}
-- {bullet}
-
-**Do NOT trade if:**
-- {bullet}
+```bash
+# Substitute trade_date, then:
+parallel-cli research run "$(sed -n '/^---$/,/^---$/p' data/parallel/prompt-daily-fx-strategy-brief.md | sed '1d;$d')" \
+  --processor pro-fast --no-wait --json
 ```
 
-### 4. `## Priority Execution Queue`
+Or copy the **Research Prompt** section directly.
 
-Numbered list (max 3 trades/day suggestion for retail focus):
+---
 
-1. {PAIR} — {Template ID} — {one-line why first}
-2. ...
+## Research Prompt
 
-If all pairs `T0_NO_TRADE`, state: **No intraday templates active today.**
+---
+You are the daily FX intraday strategy selector for a personal research workspace. Your job is NOT to find new strategies — it is to classify today's market regime for each focus pair and recommend **exactly one approved template** (or explicit no-trade).
 
-### 5. `## Scenario × Template Matrix (Today)`
+**Run mode:** Weekday execution brief (pre-London, 05:00–06:30 UTC).
+**Asset scope:** Spot FX only — G10 majors and selected crosses.
+**Style:** Intraday (flat before rollover unless template says otherwise).
+**Cost assumption:** ECN-style majors ~0.8–1.2 pip round-turn. Do not claim guaranteed profitability.
 
-| Pair | Scenario | Template ID | Confidence | Trade? (Y/N) |
-| --- | --- | --- | --- | --- |
+### Runtime inputs (set before each run)
 
-### 6. `## Structured Output (JSON)`
+- trade_date: {YYYY-MM-DD}
+- focus_pairs: EURUSD, GBPUSD, USDJPY, EURJPY
+- session_anchor: UTC (Asian 0000-0700, London 0700-1600, NY 1200-2100, overlap 1200-1600)
 
-Return a fenced JSON block conforming to `data/parallel/output-daily-fx-strategy-brief.json` for downstream parsing.
+### Approved strategy template registry
 
-### 7. `## Sources & Uncertainty`
+Recommend ONLY these Template IDs. Map to exact Pine filenames.
 
-- Cite calendar and market data sources with dates.
-- List conflicts, stale data, and missing inputs.
+| Template ID | Strategy Name | Scenario | Chart TF | Entry Session UTC | Pine Screener | Pine Strategy | Tier |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T1_PULLBACK | D1-Bias EMA Pullback | Strong trend day | H1 | 0700-1400 | d1-bias-ema-pullback-forex.pine | d1-bias-ema-pullback-forex-strategy.pine | PRIMARY |
+| T2_FALSE_BREAKOUT | Asian False Breakout Reversion | Range / mean-reversion day | M15 | 0700-1200 | asian-false-breakout-reversion-forex.pine | asian-false-breakout-reversion-forex-strategy.pine | PRIMARY |
+| T3_EXPANSION | Volatility-Compression Expansion | Expansion / post-compression | M15 | 0715-1400 | vol-compression-expansion-forex.pine | vol-compression-expansion-forex-strategy.pine | SECONDARY |
+| T4_SWING_BACKUP | Supertrend + 200 EMA Long | Swing backup when intraday blocked | 1D | N/A | supertrend-ema-atr-long.pine | (no strategy file) | BACKUP |
+| T0_NO_TRADE | No Trade / Cash Mode | Holiday, event, drift, no edge | — | — | — | — | BLOCK |
 
-## Quality Bar
+**Never recommend (archived — failed backtests after costs):**
+- ARCHIVE_ORB — generic 15m Opening Range Breakout (EURUSD PF ~0.5–0.7)
+- ARCHIVE_LONDON_BO — plain London/Asian breakout without narrow-range filter (PF ~0.26–0.76)
 
-A good daily brief lets the user at **06:30 UTC** know:
+### Playbook evidence (use for classification, not for hype)
 
-- which Pine script to open on TradingView,
-- which pairs are in play,
-- and which pairs to **ignore today**.
+- **T1_PULLBACK:** Highest-confidence intraday template. D1 bias + H1/M15 pullback to 21 EMA, 2× ATR stop, 2:1 R:R. Published EURUSD pullback ~63% WR (small sample ~30 trades). ADX classifies scenario — do NOT use ADX as entry filter (FX PF drops when ADX filters entries).
+- **T2_FALSE_BREAKOUT:** Only when D1 ADX < 20 AND Asian range expected 20–35 pips (EURUSD proxy). Without narrow-range filter, London breakout strategies fail (PF ~0.26).
+- **T3_EXPANSION:** D1 BB inside Keltner squeeze ≥2 bars + London breakout. FX-specific evidence is thin; recommend only when compression is extreme. Marginal edge after costs.
+- **T0_NO_TRADE:** Holidays (spreads +30–50%), high-impact events (NFP/CPI/FOMC/ECB ±2h), drift days (ADX 15–25), ambiguous regime. Neely (2002): intraday FX technical rules often have zero excess return after realistic costs.
 
-It must be **actionable in one screen** — not a generic FX commentary.
+### Scenario taxonomy (assign one primary scenario 1–8 per pair)
 
-## Missing Context Handling
+1. Strong trend day — ADX elevated, D1 EMA slope aligned, directional prior day
+2. Weak trend / drift day — ADX 15–25, flat EMA
+3. Range / mean-reversion day — ADX < 20, low D1 ATR percentile, narrow Asian range expected
+4. Expansion / breakout day — D1 volatility compression (BB/Keltner squeeze)
+5. High-impact event day — scheduled NFP, CPI, FOMC, ECB, etc.
+6. Risk-on / risk-off shock — DXY + VIX co-directional move
+7. Low-liquidity / holiday — regional holiday or thin session
+8. Cross-pair divergence — EURUSD vs GBPUSD leadership mismatch (filter only, never standalone template)
 
-If calendar or price context is unavailable:
+### Decision tree (apply in order for each pair)
 
-- Default affected pairs to `T0_NO_TRADE`
-- Set all confidence to `Low`
-- Document gaps in `## Sources & Uncertainty`
-- Still produce valid JSON with `trade_allowed: false` per pair
+1. Holiday or thin liquidity? → T0_NO_TRADE
+2. High-impact event affecting pair within ±2h of release? → T0_NO_TRADE
+3. D1 strong trend (ADX > 25, EMA slope aligned, directional prior day)? → T1_PULLBACK
+4. D1 range regime (ADX < 20, low ATR pct)? → if Asian range likely 20–35 pips → T2_FALSE_BREAKOUT; else T0_NO_TRADE or wait
+5. D1 squeeze (BB inside Keltner ≥ 2 bars, low ATR pct)? → T3_EXPANSION
+6. Drift day (ADX 15–25, no squeeze)? → T0_NO_TRADE (default skip)
+7. Cross-pair divergence only? → apply as filter on T1/T2; do not assign standalone template
+8. Ambiguous or missing data? → T0_NO_TRADE, confidence Low
 
-## Notion Handoff
+**Pair priority:** EURUSD first for T1/T2; USDJPY for risk-off; EURJPY only for T3 when expansion expected.
 
-After Parallel run completes:
+### Your task for trade_date
 
-- Store full result URL in `Research Runs.Result URL`
-- Copy `## Executive Summary` to `Research Runs.Executive Summary` and `Research Ideas.Executive Summary`
-- Use JSON `pair_recommendations[]` for optional Trading Proposals prep (manual review; no auto-import without confirmation)
+For each pair in focus_pairs:
 
-## Example Original Idea → Research Input
+1. Check economic calendar and liquidity for trade_date (cite sources).
+2. Classify primary scenario (1–8) using D1 context knowable pre-07:00 UTC.
+3. Apply decision tree → one Template ID.
+4. State D1 bias: Long, Short, or Neutral.
+5. State confidence: High, Medium, or Low with one-line rationale.
+6. List London open checklist (07:00 UTC): Asian range width target, spread check, confirmation triggers.
+7. List explicit do-not-trade conditions.
 
-**Original Idea:** `Daily FX strategy brief — 2026-06-16`
+Separate FACT vs ASSUMPTION vs OPINION throughout.
 
-**Research Input:** Paste this entire prompt, replacing:
+### Output format (strict)
 
+Return Markdown with these sections:
+
+## Executive Summary
+(≤300 words — what to trade today, which template, or sit out entirely)
+
+## Today's Market Context
+(UTC date, day of week, holidays, high-impact events with times, risk-on/off if relevant)
+
+## Pair Recommendations
+(One subsection per pair with table: Scenario, Template ID, Strategy Name, D1 Bias, Confidence, Chart TF, Entry Session UTC, Pine Screener, Pine Strategy, Rationale, London open checklist, Do NOT trade if)
+
+## Priority Execution Queue
+(Numbered max 3 setups for the day, or "No intraday templates active today")
+
+## Scenario × Template Matrix (Today)
+(Table: Pair | Scenario | Template ID | Confidence | Trade? Y/N)
+
+## Structured Output (JSON)
+(Fenced JSON block conforming to schema below — required)
+
+## Sources & Uncertainty
+(Cite calendar/market sources; list gaps and conflicts)
+
+### Required JSON schema
+
+```json
+{
+  "schema_version": "v1.0",
+  "trade_date": "YYYY-MM-DD",
+  "executive_summary": "string ≤300 words",
+  "global_context": {
+    "liquidity_status": "normal|thin|holiday|mixed",
+    "high_impact_events": [{"event_name":"","time_utc":"","affected_pairs":[]}],
+    "risk_regime": "risk_on|risk_off|neutral|unknown",
+    "risk_regime_notes": "string"
+  },
+  "pair_recommendations": [{
+    "pair": "EURUSD",
+    "scenario_id": 1,
+    "scenario_name": "string",
+    "template_id": "T0_NO_TRADE|T1_PULLBACK|T2_FALSE_BREAKOUT|T3_EXPANSION|T4_SWING_BACKUP",
+    "strategy_name": "string",
+    "d1_bias": "Long|Short|Neutral",
+    "confidence": "High|Medium|Low",
+    "chart_timeframe": "H1|M15|1D|N/A",
+    "entry_session_utc": "string or N/A",
+    "pine_screener": "filename or empty",
+    "pine_strategy": "filename or empty",
+    "trade_allowed": true,
+    "rationale": "string",
+    "london_open_checklist": ["string"],
+    "do_not_trade_if": ["string"]
+  }],
+  "priority_execution_queue": [{"rank": 1, "pair": "EURUSD", "template_id": "T1_PULLBACK", "reason": "string"}],
+  "output_quality": {
+    "fact_assumption_boundary": "string",
+    "missing_information": ["string"],
+    "uncertainty_notes": ["string"]
+  }
+}
 ```
-trade_date: 2026-06-16
-focus_pairs: EURUSD, GBPUSD, USDJPY, EURJPY
-```
+
+### Constraints
+
+- One primary template per pair per day.
+- No position sizing, lot sizes, or personalized investment advice.
+- If calendar or prices unavailable → default T0_NO_TRADE, confidence Low, document gaps.
+- Optimize for actionable output at 06:30 UTC: which Pine file to open, which pairs to ignore.
+
+Begin analysis for trade_date = {YYYY-MM-DD}.
+---
+
+## Expansion rule (expand-new-ideas)
+
+When `Original Idea` matches `Daily FX strategy brief — {YYYY-MM-DD}`:
+
+1. Extract date from title (fallback: today UTC).
+2. Set `Research Input` = entire **Research Prompt** block above (between `---` fences).
+3. Replace `{YYYY-MM-DD}` in `trade_date` and `Begin analysis` line with extracted date.
+4. Set `Status` = `Expanded`.
+
+## Processor rule (run-expanded-ideas-deep-research)
+
+When `Original Idea` starts with `Daily FX strategy brief`:
+
+- Use `--processor pro-fast` (not `ultra`).
+- Store `Prompt Used` = first 500 chars of Research Input + `…` if truncated.
+
+## Missing context
+
+If Parallel cannot access live calendar/prices: still output valid JSON with all pairs `trade_allowed: false` and explain gaps in `output_quality.missing_information`.

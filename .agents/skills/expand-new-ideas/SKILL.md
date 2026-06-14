@@ -10,9 +10,10 @@ Convert eligible Notion `Research Ideas` entries from `Original Idea` into `Rese
 
 ## Steps
 
-1. Load guidance and prompt source:
+1. Load guidance and prompt sources:
    - Read `AGENTS.md`.
    - Read `data/prompts/research-idea-brief.md`.
+   - Read `data/parallel/prompt-daily-fx-strategy-brief.md` (daily FX strategy selector).
    - Follow workspace safety rules and the `notion-api` skill.
 
 2. Validate auth and target objects (read-only):
@@ -36,10 +37,13 @@ Convert eligible Notion `Research Ideas` entries from `Original Idea` into `Rese
    - Wait for explicit confirmation before any write.
 
 5. Generate research input:
-   - For each matched record, use:
-     - System guidance from `data/prompts/research-idea-brief.md`
-     - The page's `Original Idea` as the user input
-   - Produce concise, high-signal `Research Input` text only.
+   - For each matched record, inspect `Original Idea`:
+     - **Daily FX strategy brief:** If title matches `Daily FX strategy brief — {YYYY-MM-DD}` (case-insensitive):
+       - Extract date from title; fallback to today UTC if missing.
+       - Load the **Research Prompt** block from `data/parallel/prompt-daily-fx-strategy-brief.md` (content between the first pair of `---` fences under `## Research Prompt`).
+       - Replace all `{YYYY-MM-DD}` placeholders with the extracted date.
+       - Use the result as `Research Input` verbatim (do not summarize or shorten).
+     - **All other ideas:** Use `data/prompts/research-idea-brief.md` guidance + `Original Idea` to produce concise, high-signal `Research Input`.
 
 6. Update Notion pages:
    - Update each matched page in `Research Ideas`:

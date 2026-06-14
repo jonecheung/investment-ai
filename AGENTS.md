@@ -58,9 +58,9 @@ For recurring opportunity scans, `Research Ideas` should use:
 For intraday template selection (which Pine strategy to use today):
 
 - **Original Idea:** `Daily FX strategy brief — {YYYY-MM-DD}` (see `data/prompts/daily-fx-strategy-original-idea.md`)
-- **Research Input:** `data/parallel/prompt-daily-fx-strategy-brief.md` with `trade_date` and focus pairs set
+- **Research Input:** Auto-expanded by `expand-new-ideas` from `data/parallel/prompt-daily-fx-strategy-brief.md` (Research Prompt block)
 - **Run Frequency:** `Daily`, `Active = true`, weekday mornings ~05:00–06:30 UTC
-- **Processor:** `pro-fast` (calendar + market context)
+- **Processor:** `pro-fast` (via `run-expanded-ideas-deep-research` when Original Idea matches daily brief prefix)
 - **Output:** Executive Summary + JSON (`data/parallel/output-daily-fx-strategy-brief.json`) with per-pair `template_id` (`T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, `T0_NO_TRADE`) and Pine filenames
 
 ### Output Standardization Policy (v1)
