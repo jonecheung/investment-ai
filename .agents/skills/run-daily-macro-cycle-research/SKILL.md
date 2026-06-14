@@ -27,7 +27,7 @@ This skill is intended for scheduled automation. The daily workflow runs the ful
 
 Optional:
 
-- `PARALLEL_PROCESSOR` defaults to `lite`
+- `PARALLEL_PROCESSOR` defaults to `ultra` for non-fast deep research
 - `FOLLOWUP_PROCESSOR` defaults to `core`
 - `AUTO_CREATE_TRADING_PROPOSALS` defaults to `1`
 - `MACRO_RESEARCH_IDEA_TITLE` defaults to `Daily Macro Cycle Regime Scan Before EU Session`
@@ -94,4 +94,4 @@ The paired GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the E
 2. Poll running research records and sync any completed summaries back to Notion.
 3. Auto-create pair-level `Trading Proposals` from completed macro research runs that have not yet been followed up.
 
-If a research run takes longer than the poll timeout, it remains `Running` in Notion and will be picked up by the next scheduled/manual workflow run. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
+If a research run takes longer than the poll timeout, it remains `Running` in Notion and will be picked up by the next scheduled/manual workflow run. The default workflow uses the non-fast `ultra` processor, so it can take materially longer and use more Parallel credits than fast tiers. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.

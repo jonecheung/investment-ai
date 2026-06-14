@@ -10,13 +10,13 @@ on:
 jobs:
   run-macro-cycle-research:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
       PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
-      PARALLEL_PROCESSOR: lite
-      PARALLEL_POLL_TIMEOUT: 540
+      PARALLEL_PROCESSOR: ultra
+      PARALLEL_POLL_TIMEOUT: 1800
       PARALLEL_POLL_LIMIT: 5
       AUTO_CREATE_TRADING_PROPOSALS: 1
       FOLLOWUP_PROCESSOR: core
