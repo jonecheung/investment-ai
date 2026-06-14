@@ -21,9 +21,9 @@
           "items": {
             "type": "string",
             "enum": [
-              "HK",
-              "JP",
-              "US",
+              "FX_MAJOR",
+              "FX_CROSS",
+              "FX_EM",
               "OTHER"
             ]
           }

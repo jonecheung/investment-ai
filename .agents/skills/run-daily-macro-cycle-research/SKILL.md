@@ -8,10 +8,10 @@ disable-model-invocation: true
 
 Start the standardized macro-cycle regime scan from `Research Ideas`, submit it to Parallel research, and log kickoff metadata in `Research Runs`.
 
-This skill is intended for scheduled automation. Kickoff and polling are separate:
+This skill is intended for scheduled automation. The daily workflow runs the full research pipeline:
 
 - `scripts/run.sh` starts a run and logs kickoff metadata.
-- `scripts/poll.sh` polls running Notion records and syncs completed summaries.
+- `scripts/poll.sh` polls running Notion records, syncs completed summaries, then creates research-only `Trading Proposals` rows from a structured Parallel follow-up.
 
 ## Safety
 
@@ -27,7 +27,9 @@ This skill is intended for scheduled automation. Kickoff and polling are separat
 
 Optional:
 
-- `PARALLEL_PROCESSOR` defaults to `base`
+- `PARALLEL_PROCESSOR` defaults to `ultra` for non-fast deep research
+- `FOLLOWUP_PROCESSOR` defaults to `core`
+- `AUTO_CREATE_TRADING_PROPOSALS` defaults to `1`
 - `MACRO_RESEARCH_IDEA_TITLE` defaults to `Daily Macro Cycle Regime Scan Before EU Session`
 - `MACRO_PROMPT_PATH` defaults to `data/prompts/macro-cycle-regime-scan.md`
 
@@ -70,6 +72,26 @@ Polling updates completed runs in `Research Runs` and their linked `Research Ide
 - `Completed At`
 - `Executive Summary`
 
+When `AUTO_CREATE_TRADING_PROPOSALS=1`, polling also:
+
+1. Finds completed macro research runs that do not already have a follow-up run.
+2. Runs a schema-constrained Parallel follow-up using `data/parallel/prompt-followup-tradable-tickers.md` and `data/parallel/output-tradable-tickers.json`.
+3. Creates a linked follow-up `Research Runs` row.
+4. Imports validated `ticker_opportunities[]` into `Trading Proposals`.
+
+Imported proposals are research framing only:
+
+- `Status = Proposed`
+- `Pricing Status = Not Started`
+- no entry, stop, target, sizing, execution, or trade ledger write
+- duplicate proposals for the same follow-up run are skipped
+
 ## Scheduling
 
-The paired kickoff GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the European trading session. A polling workflow checks running research records every 15 minutes during weekday EU/US trading hours. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
+The paired GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the European trading session. It performs all research steps in one run:
+
+1. Start the new macro-cycle research run.
+2. Poll running research records and sync any completed summaries back to Notion.
+3. Auto-create pair-level `Trading Proposals` from completed macro research runs that have not yet been followed up.
+
+If a research run takes longer than the poll timeout, it remains `Running` in Notion and will be picked up by the next scheduled/manual workflow run. The default workflow uses the non-fast `ultra` processor, so it can take materially longer and use more Parallel credits than fast tiers. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
