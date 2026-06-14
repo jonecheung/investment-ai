@@ -130,6 +130,7 @@ def run_parallel(prompt: str, processor: str) -> dict[str, Any]:
         prompt,
         "--processor",
         processor,
+        "--text",
         "--no-wait",
         "--json",
     ]
@@ -205,7 +206,7 @@ def ensure_macro_idea(
 def main() -> None:
     notion_token = env_required("NOTION_API_TOKEN")
 
-    processor = os.environ.get("PARALLEL_PROCESSOR", "pro-fast")
+    processor = os.environ.get("PARALLEL_PROCESSOR", "base")
     title = os.environ.get("MACRO_RESEARCH_IDEA_TITLE", "Daily Macro Cycle Regime Scan Before EU Session")
     prompt_path = Path(os.environ.get("MACRO_PROMPT_PATH", "data/prompts/macro-cycle-regime-scan.md"))
     ensure_idea_only = os.environ.get("MACRO_ENSURE_IDEA_ONLY") == "1"

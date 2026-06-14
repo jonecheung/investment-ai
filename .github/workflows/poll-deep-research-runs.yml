@@ -1,23 +1,21 @@
-name: Daily Macro Cycle Research
+name: Poll Deep Research Runs
 
 on:
   schedule:
-    # Monday-Friday before the European trading session.
-    # This approximates trading days; market holidays are not filtered.
-    - cron: "30 6 * * 1-5"
+    # Poll during weekday EU/US trading hours to sync completed Parallel runs.
+    - cron: "*/15 6-22 * * 1-5"
   workflow_dispatch:
 
 jobs:
-  run-macro-cycle-research:
+  poll-deep-research-runs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
       PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
-      PARALLEL_PROCESSOR: base
-      MACRO_PROMPT_PATH: data/prompts/macro-cycle-regime-scan.md
-      MACRO_RESEARCH_IDEA_TITLE: Daily Macro Cycle Regime Scan Before EU Session
+      PARALLEL_POLL_TIMEOUT: 540
+      PARALLEL_POLL_LIMIT: 5
 
     steps:
       - name: Checkout repository
@@ -34,5 +32,5 @@ jobs:
           curl -fsSL https://parallel.ai/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Start scheduled macro-cycle research
-        run: bash .agents/skills/run-daily-macro-cycle-research/scripts/run.sh
+      - name: Poll running deep research runs
+        run: bash .agents/skills/run-daily-macro-cycle-research/scripts/poll.sh
