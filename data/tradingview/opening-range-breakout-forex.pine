@@ -1,0 +1,143 @@
+//@version=5
+indicator("Opening Range Breakout Forex Screener", overlay=true)
+
+// Pine Screener-compatible ORB setup for FX majors (15m/30m intraday; 4H session proxy).
+// Methodology: Andrea Cimi ORB — lock session opening-range high/low, enter on close breakout,
+// stop at breakout-bar extreme, target at fixed reward-risk multiple.
+// Video presets: 30min long-only 1:1 RR; 15min long+short ~1:2 RR scalp.
+
+presetGroup = "Strategy Preset"
+strategyPreset = input.string(
+     "30min Long (1:1 RR)",
+     "Preset",
+     options=["30min Long (1:1 RR)", "15min Long+Short (1:2 RR)"],
+     group=presetGroup)
+usePresetParams = input.bool(true, "Use Preset OR Minutes / RR / Direction", group=presetGroup)
+
+sessionGroup = "Session"
+tradingSession = input.session("0700-1600", "Trading Session", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+
+orGroup = "Opening Range"
+orMinutesInput = input.int(30, "Opening Range Minutes", minval=5, maxval=120, group=orGroup)
+orMinutes = usePresetParams ? (strategyPreset == "30min Long (1:1 RR)" ? 30 : 15) : orMinutesInput
+
+tradeGroup = "Trade Rules"
+tradeModeInput = input.string("Long Only", "Trade Mode", options=["Long Only", "Long and Short"], group=tradeGroup)
+tradeMode = usePresetParams ? (strategyPreset == "30min Long (1:1 RR)" ? "Long Only" : "Long and Short") : tradeModeInput
+allowLong = tradeMode == "Long Only" or tradeMode == "Long and Short"
+allowShort = tradeMode == "Long and Short"
+rewardRiskInput = input.float(1.0, "Reward Risk Target", minval=0.1, step=0.05, group=tradeGroup)
+rewardRiskTarget = usePresetParams ? (strategyPreset == "30min Long (1:1 RR)" ? 1.0 : 2.05) : rewardRiskInput
+requireCloseBreakout = input.bool(true, "Require Close Beyond OR (not wick only)", group=tradeGroup)
+
+inSession = not na(time(timeframe.period, tradingSession, sessionTimezone))
+newSession = inSession and not inSession[1]
+
+var int orStartMs = na
+var float orHigh = na
+var float orLow = na
+var bool orBuilding = false
+var float lockedOrHigh = na
+var float lockedOrLow = na
+
+if newSession
+    orStartMs := time
+    orHigh := high
+    orLow := low
+    orBuilding := true
+    lockedOrHigh := na
+    lockedOrLow := na
+else if inSession and orBuilding
+    orHigh := math.max(orHigh, high)
+    orLow := math.min(orLow, low)
+    if (time - orStartMs) >= orMinutes * 60 * 1000
+        orBuilding := false
+        lockedOrHigh := orHigh
+        lockedOrLow := orLow
+else if not inSession
+    orBuilding := false
+    orHigh := na
+    orLow := na
+    lockedOrHigh := na
+    lockedOrLow := na
+
+orReady = inSession and not orBuilding and not na(lockedOrHigh) and not na(lockedOrLow)
+
+longBreakRaw = orReady and close > lockedOrHigh and (not requireCloseBreakout or close[1] <= lockedOrHigh)
+shortBreakRaw = orReady and close < lockedOrLow and (not requireCloseBreakout or close[1] >= lockedOrLow)
+longBreak = allowLong and longBreakRaw
+shortBreak = allowShort and shortBreakRaw
+
+longRiskOnBreak = longBreak ? close - low : na
+shortRiskOnBreak = shortBreak ? high - close : na
+longBreakValid = longBreak and longRiskOnBreak > 0
+shortBreakValid = shortBreak and shortRiskOnBreak > 0
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+if longBreakValid
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    tradeStop := low
+    tradeTarget := close + rewardRiskTarget * longRiskOnBreak
+else if shortBreakValid
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    tradeStop := high
+    tradeTarget := close - rewardRiskTarget * shortRiskOnBreak
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if not inSession
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActive = activeLong or activeShort
+newSetup = longBreakValid or shortBreakValid
+
+entryPrice = setupActive ? tradeEntry : na
+stopPrice = setupActive ? tradeStop : na
+targetPrice = setupActive ? tradeTarget : na
+activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+
+// Keep these first: Pine Screener automatically adds the first ten plots as columns/filters.
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(entryPrice, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(stopPrice, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(targetPrice, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(orReady ? lockedOrHigh : na, "OR High", color=color.new(color.orange, 0), linewidth=2)
+plot(orReady ? lockedOrLow : na, "OR Low", color=color.new(color.orange, 0), linewidth=2)
+plot(orReady ? 1 : 0, "OR Ready", color=color.new(color.gray, 0))
+plot(inSession ? 1 : 0, "In Session", color=color.new(color.teal, 0))
+
+plotshape(longBreakValid, "Long Breakout", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="ORB L")
+plotshape(shortBreakValid, "Short Breakout", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="ORB S")
+alertcondition(longBreakValid, "ORB Long Breakout", "Opening range long breakout on {{ticker}}.")
+alertcondition(shortBreakValid, "ORB Short Breakout", "Opening range short breakout on {{ticker}}.")
+alertcondition(newSetup, "ORB New Setup", "New ORB setup on {{ticker}}.")
