@@ -1,7 +1,8 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T1_PULLBACK | Chart: H1 | Pairs: EURUSD, GBPUSD, USDJPY | Session: 07:00-14:00 UTC
 strategy(
-     "D1 Bias EMA Pullback Forex Strategy",
+     "T1 D1 Bias EMA Pullback Forex Strategy",
      overlay=true,
      pyramiding=0,
      initial_capital=10000,
@@ -24,7 +25,9 @@ blockNewEntries = input.bool(false, "Block All Entries (Holiday/Event)", group=s
 
 biasGroup = "D1 Regime"
 emaLength = input.int(21, "EMA Length", minval=1, group=biasGroup)
-adxLength = input.int(14, "ADX Length", minval=1, group=biasGroup)
+adxClassifyMin = input.int(25, "ADX Min For Strong Trend (classification)", minval=1, group=biasGroup)
+d1BodyPctMin = input.float(0.55, "D1 Body % Min (prior day)", minval=0.0, maxval=1.0, step=0.05, group=biasGroup)
+d1AtrPctMin = input.float(50.0, "D1 ATR Percentile Min", minval=0.0, maxval=100.0, step=5.0, group=biasGroup)
 atrLength = input.int(14, "ATR Length", minval=1, group=biasGroup)
 atrStopMult = input.float(2.0, "ATR Stop Multiplier (H1)", minval=0.5, step=0.1, group=biasGroup)
 rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=biasGroup)
@@ -58,9 +61,9 @@ f_d1Regime() =>
     emaDown = ema21[1] < ema21[4]
     bullDay = close[1] > open[1]
     bearDay = close[1] < open[1]
-    strongTrend = adxVal[1] > 25
-    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= 0.55 and atrPct >= 50
-    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= 0.55 and atrPct >= 50
+    strongTrend = adxVal[1] > adxClassifyMin
+    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= d1BodyPctMin and atrPct >= d1AtrPctMin
+    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= d1BodyPctMin and atrPct >= d1AtrPctMin
     [longBias ? 1.0 : 0.0, shortBias ? 1.0 : 0.0, low[1], high[1]]
 
 [d1LongBias, d1ShortBias, d1PriorLow, d1PriorHigh] = request.security(

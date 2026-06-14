@@ -1,7 +1,8 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T2_FALSE_BREAKOUT | Chart: M15 | Pairs: EURUSD, GBPUSD | Session: 07:00-12:00 UTC
 strategy(
-     "Asian False Breakout Reversion Forex Strategy",
+     "T2 Asian False Breakout Reversion Forex Strategy",
      overlay=true,
      pyramiding=0,
      initial_capital=10000,
@@ -29,6 +30,9 @@ adxMax = input.int(20, "D1 ADX Max", minval=1, group=regimeGroup)
 rangeGroup = "Asian Range"
 minRangePips = input.float(10.0, "Min Asian Range (pips)", minval=1.0, step=1.0, group=rangeGroup)
 maxRangePips = input.float(60.0, "Max Asian Range (pips)", minval=5.0, step=1.0, group=rangeGroup)
+optimalMinPips = input.float(20.0, "Optimal Range Min (pips)", minval=1.0, step=1.0, group=rangeGroup)
+optimalMaxPips = input.float(35.0, "Optimal Range Max (pips)", minval=5.0, step=1.0, group=rangeGroup)
+requireOptimalRange = input.bool(true, "Require Optimal Range 20-35 pips", group=rangeGroup)
 
 tradeGroup = "Trade Rules"
 atrLength = input.int(14, "ATR Length", minval=1, group=tradeGroup)
@@ -101,6 +105,8 @@ if asianEnd
 asianRangePips = rangeReady ? (lockedAsianHigh - lockedAsianLow) / pipSize : na
 asianMid = rangeReady ? (lockedAsianHigh + lockedAsianLow) / 2.0 : na
 rangeWidthOk = rangeReady and asianRangePips >= minRangePips and asianRangePips <= maxRangePips
+optimalRange = rangeReady and asianRangePips >= optimalMinPips and asianRangePips <= optimalMaxPips
+rangeFilterOk = rangeWidthOk and (not requireOptimalRange or optimalRange)
 
 atr = ta.atr(atrLength)
 rsi = ta.rsi(close, rsiLength)
@@ -113,8 +119,11 @@ if inEntry and rangeReady
 
 canEnter = not oneTradePerDay or not tradedToday
 
-falseBreakShort = inEntry and canEnter and rangeWidthOk and d1RangeOk and not na(sessionBreakHigh) and close < lockedAsianHigh and close[1] >= lockedAsianHigh and rsi >= rsiOverbought
-falseBreakLong = inEntry and canEnter and rangeWidthOk and d1RangeOk and not na(sessionBreakLow) and close > lockedAsianLow and close[1] <= lockedAsianLow and rsi <= rsiOversold
+hadBreakAbove = rangeReady and not na(sessionBreakHigh) and sessionBreakHigh > lockedAsianHigh
+hadBreakBelow = rangeReady and not na(sessionBreakLow) and sessionBreakLow < lockedAsianLow
+
+falseBreakShort = inEntry and canEnter and rangeFilterOk and d1RangeOk and hadBreakAbove and close < lockedAsianHigh and rsi >= rsiOverbought
+falseBreakLong = inEntry and canEnter and rangeFilterOk and d1RangeOk and hadBreakBelow and close > lockedAsianLow and rsi <= rsiOversold
 
 clampStop(isLong, entry, extreme) =>
     minDist = minStopPips * pipSize

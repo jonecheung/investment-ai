@@ -1,5 +1,7 @@
 //@version=5
-indicator("Vol Compression Expansion Forex Screener", overlay=true)
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T3_EXPANSION | Chart: M15 | Pairs: EURUSD, USDJPY, EURJPY | Session: 07:15-14:00 UTC
+indicator("T3 Vol Compression Expansion Forex Screener", overlay=true)
 
 // Pine Screener — Scenario 4: Expansion Day → Volatility-Compression Expansion.
 // Run on M15. D1 BB/Keltner squeeze + London breakout of Asian range.

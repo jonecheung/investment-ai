@@ -1,7 +1,8 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T3_EXPANSION | Chart: M15 | Pairs: EURUSD, USDJPY, EURJPY | Session: 07:15-14:00 UTC
 strategy(
-     "Vol Compression Expansion Forex Strategy",
+     "T3 Vol Compression Expansion Forex Strategy",
      overlay=true,
      pyramiding=0,
      initial_capital=10000,

@@ -1,5 +1,7 @@
 //@version=5
-indicator("D1 Bias EMA Pullback Forex Screener", overlay=true)
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T1_PULLBACK | Chart: H1 | Pairs: EURUSD, GBPUSD, USDJPY
+indicator("T1 D1 Bias EMA Pullback Forex Screener", overlay=true)
 
 // Pine Screener — Scenario 1: Strong Trend Day → D1-Bias EMA Pullback.
 // Run on H1 chart; D1 regime + M15 entry via request.security.
@@ -42,9 +44,9 @@ f_d1Regime() =>
     emaDown = ema21[1] < ema21[4]
     bullDay = close[1] > open[1]
     bearDay = close[1] < open[1]
-    strongTrend = adxVal[1] > 25
-    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= 0.55 and atrPct >= 50
-    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= 0.55 and atrPct >= 50
+    strongTrend = adxVal[1] > adxClassifyMin
+    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= d1BodyPctMin and atrPct >= d1AtrPctMin
+    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= d1BodyPctMin and atrPct >= d1AtrPctMin
     [longBias ? 1.0 : 0.0, shortBias ? 1.0 : 0.0, low[1], high[1]]
 
 [d1LongBias, d1ShortBias, d1PriorLow, d1PriorHigh] = request.security(
