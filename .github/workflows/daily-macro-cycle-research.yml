@@ -16,6 +16,8 @@ jobs:
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
       PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
       PARALLEL_PROCESSOR: base
+      PARALLEL_POLL_TIMEOUT: 540
+      PARALLEL_POLL_LIMIT: 5
       MACRO_PROMPT_PATH: data/prompts/macro-cycle-regime-scan.md
       MACRO_RESEARCH_IDEA_TITLE: Daily Macro Cycle Regime Scan Before EU Session
 
@@ -36,3 +38,6 @@ jobs:
 
       - name: Start scheduled macro-cycle research
         run: bash .agents/skills/run-daily-macro-cycle-research/scripts/run.sh
+
+      - name: Poll and sync completed research
+        run: bash .agents/skills/run-daily-macro-cycle-research/scripts/poll.sh

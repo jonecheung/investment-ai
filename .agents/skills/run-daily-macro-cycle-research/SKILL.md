@@ -72,4 +72,9 @@ Polling updates completed runs in `Research Runs` and their linked `Research Ide
 
 ## Scheduling
 
-The paired kickoff GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the European trading session. A polling workflow checks running research records every 15 minutes during weekday EU/US trading hours. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
+The paired GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the European trading session. It performs both parts in one run:
+
+1. Start the new macro-cycle research run.
+2. Poll running research records and sync any completed summaries back to Notion.
+
+If a research run takes longer than the poll timeout, it remains `Running` in Notion and will be picked up by the next scheduled/manual workflow run. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
