@@ -1,4 +1,5 @@
 //@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
 strategy(
      "EURUSD London Breakout Strategy",
      overlay=true,
@@ -13,8 +14,7 @@ strategy(
      process_orders_on_close=true)
 
 // Route A — FX London Breakout (community standard for EURUSD).
-// Build Asian session range, trade breakouts during London window.
-// Inspired by open-source EUR/USD London Breakout patterns on TradingView / GitHub.
+// Asian range session → London window breakout of Asian high/low.
 
 sessionGroup = "Sessions"
 asianSession = input.session("0000-0800", "Asian Range Session", group=sessionGroup)
@@ -60,7 +60,6 @@ inLondon = not na(time(timeframe.period, londonSession, sessionTimezone))
 asianStart = inAsian and not inAsian[1]
 asianEnd = not inAsian and inAsian[1]
 londonEnd = not inLondon and inLondon[1]
-newDay = ta.change(time("D")) != 0
 
 var float asianHigh = na
 var float asianLow = na
@@ -72,16 +71,6 @@ var bool pendingLong = false
 var bool pendingShort = false
 var float pendingLongStop = na
 var float pendingShortStop = na
-var float pendingLongTarget = na
-var float pendingShortTarget = na
-
-if newDay
-    tradedToday := false
-    rangeReady := false
-    lockedAsianHigh := na
-    lockedAsianLow := na
-    pendingLong := false
-    pendingShort := false
 
 if asianStart
     asianHigh := high
@@ -89,14 +78,20 @@ if asianStart
     lockedAsianHigh := na
     lockedAsianLow := na
     rangeReady := false
+    tradedToday := false
+    pendingLong := false
+    pendingShort := false
 else if inAsian
-    asianHigh := math.max(asianHigh, high)
-    asianLow := math.min(asianLow, low)
+    asianHigh := na(asianHigh) ? high : math.max(asianHigh, high)
+    asianLow := na(asianLow) ? low : math.min(asianLow, low)
+else if not inAsian and not inLondon
+    pendingLong := false
+    pendingShort := false
 
 if asianEnd
     lockedAsianHigh := asianHigh
     lockedAsianLow := asianLow
-    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow)
+    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow) and lockedAsianHigh > lockedAsianLow
 
 asianRange = rangeReady ? lockedAsianHigh - lockedAsianLow : na
 minRangeOk = not rangeReady or minRangeAtr <= 0 or asianRange >= atr * minRangeAtr
@@ -107,30 +102,33 @@ longTrendOk = not useTrendFilter or close > trendEma
 shortTrendOk = not useTrendFilter or close < trendEma
 canEnter = not oneTradePerDay or not tradedToday
 
-longBreak = rangeOk and inLondon and allowLong and longTrendOk and canEnter and ta.crossover(close, lockedAsianHigh)
-shortBreak = rangeOk and inLondon and allowShort and shortTrendOk and canEnter and ta.crossunder(close, lockedAsianLow)
+longBreak = rangeOk and inLondon and allowLong and longTrendOk and canEnter and strategy.position_size == 0 and ta.crossover(close, lockedAsianHigh)
+shortBreak = rangeOk and inLondon and allowShort and shortTrendOk and canEnter and strategy.position_size == 0 and ta.crossunder(close, lockedAsianLow)
 
-longStopSignal = stopMode == "Asian Range Opposite Side" ? lockedAsianLow : close - atrStopMultiple * atr
-shortStopSignal = stopMode == "Asian Range Opposite Side" ? lockedAsianHigh : close + atrStopMultiple * atr
+resolveLongStop(entryPrice) =>
+    stopMode == "Asian Range Opposite Side" ? lockedAsianLow : entryPrice - atrStopMultiple * atr
+
+resolveShortStop(entryPrice) =>
+    stopMode == "Asian Range Opposite Side" ? lockedAsianHigh : entryPrice + atrStopMultiple * atr
 
 calcTarget(isLong, entryPrice, stopPrice) =>
     risk = math.abs(entryPrice - stopPrice)
-    useRangeTarget and rangeOk ? (isLong ? entryPrice + asianRange * rangeTargetMultiple : entryPrice - asianRange * rangeTargetMultiple) : (isLong ? entryPrice + rewardRiskTarget * risk : entryPrice - rewardRiskTarget * risk)
+    if useRangeTarget and rangeOk
+        isLong ? entryPrice + asianRange * rangeTargetMultiple : entryPrice - asianRange * rangeTargetMultiple
+    else
+        isLong ? entryPrice + rewardRiskTarget * risk : entryPrice - rewardRiskTarget * risk
 
-if strategy.position_size == 0 and canEnter
-    if longBreak
-        pendingLong := true
-        pendingLongStop := longStopSignal
-        pendingLongTarget := calcTarget(true, close, longStopSignal)
-        pendingShort := false
-    else if shortBreak
-        pendingShort := true
-        pendingShortStop := shortStopSignal
-        pendingShortTarget := calcTarget(false, close, shortStopSignal)
-        pendingLong := false
+if longBreak
+    pendingLong := true
+    pendingLongStop := resolveLongStop(close)
+    pendingShort := false
+else if shortBreak
+    pendingShort := true
+    pendingShortStop := resolveShortStop(close)
+    pendingLong := false
 
-longEntryNow = inLondon and strategy.position_size == 0 and (entryOnNextBar ? (pendingLong[1] and canEnter) : pendingLong)
-shortEntryNow = inLondon and strategy.position_size == 0 and (entryOnNextBar ? (pendingShort[1] and canEnter) : pendingShort)
+longEntryNow = inLondon and strategy.position_size == 0 and canEnter and (entryOnNextBar ? pendingLong[1] : pendingLong)
+shortEntryNow = inLondon and strategy.position_size == 0 and canEnter and (entryOnNextBar ? pendingShort[1] : pendingShort)
 
 calcQty(entryPrice, stopPrice) =>
     riskPerUnit = math.abs(entryPrice - stopPrice)
@@ -147,7 +145,7 @@ calcQty(entryPrice, stopPrice) =>
 if longEntryNow
     entry = entryOnNextBar ? open : close
     stop = entryOnNextBar ? pendingLongStop[1] : pendingLongStop
-    target = entryOnNextBar ? pendingLongTarget[1] : pendingLongTarget
+    target = calcTarget(true, entry, stop)
     risk = entry - stop
     if risk > syminfo.mintick and target > entry
         qty = calcQty(entry, stop)
@@ -159,7 +157,7 @@ if longEntryNow
 if shortEntryNow
     entry = entryOnNextBar ? open : close
     stop = entryOnNextBar ? pendingShortStop[1] : pendingShortStop
-    target = entryOnNextBar ? pendingShortTarget[1] : pendingShortTarget
+    target = calcTarget(false, entry, stop)
     risk = stop - entry
     if risk > syminfo.mintick and target < entry
         qty = calcQty(entry, stop)
@@ -170,8 +168,6 @@ if shortEntryNow
 
 if closeAtLondonEnd and londonEnd and strategy.position_size != 0
     strategy.close_all("London End")
-    pendingLong := false
-    pendingShort := false
 
 plot(rangeReady ? lockedAsianHigh : na, "Asian High", color=color.new(color.green, 0), linewidth=2, style=plot.style_linebr)
 plot(rangeReady ? lockedAsianLow : na, "Asian Low", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
