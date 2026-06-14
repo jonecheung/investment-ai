@@ -1,0 +1,181 @@
+//@version=5
+indicator("Asian False Breakout Reversion Forex Screener", overlay=true)
+
+// Pine Screener — Scenario 3: Range Day → Asian-Range False Breakout Reversion.
+// Run on M15. Fade London false breaks of Asian range (00:00–07:00 UTC).
+
+sessionGroup = "Sessions"
+asianSession = input.session("0000-0700", "Asian Range Session UTC", group=sessionGroup)
+entrySession = input.session("0700-1200", "Entry Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+blockNewEntries = input.bool(false, "Block All Setups (Holiday/Event)", group=sessionGroup)
+
+regimeGroup = "D1 Regime (Scenario 3)"
+adxMax = input.int(20, "D1 ADX Max (range day)", minval=1, group=regimeGroup)
+d1AtrPctMax = input.float(40.0, "D1 ATR Percentile Max", minval=0.0, maxval=100.0, step=5.0, group=regimeGroup)
+
+rangeGroup = "Asian Range"
+minRangePips = input.float(10.0, "Min Asian Range (pips)", minval=1.0, step=1.0, group=rangeGroup)
+maxRangePips = input.float(60.0, "Max Asian Range (pips)", minval=5.0, step=1.0, group=rangeGroup)
+optimalMinPips = input.float(20.0, "Optimal Range Min (pips)", minval=1.0, step=1.0, group=rangeGroup)
+optimalMaxPips = input.float(35.0, "Optimal Range Max (pips)", minval=5.0, step=1.0, group=rangeGroup)
+
+tradeGroup = "Trade Rules"
+atrLength = input.int(14, "ATR Length", minval=1, group=tradeGroup)
+atrStopMult = input.float(1.5, "ATR Stop Multiplier", minval=0.5, step=0.1, group=tradeGroup)
+rsiLength = input.int(14, "RSI Length", minval=1, group=tradeGroup)
+rsiOverbought = input.int(65, "RSI Overbought (short fade)", minval=50, maxval=99, group=tradeGroup)
+rsiOversold = input.int(35, "RSI Oversold (long fade)", minval=1, maxval=50, group=tradeGroup)
+minStopPips = input.float(12.0, "Min Stop (pips)", minval=1.0, step=1.0, group=tradeGroup)
+maxStopPips = input.float(25.0, "Max Stop (pips)", minval=5.0, step=1.0, group=tradeGroup)
+
+pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+
+f_d1RangeRegime() =>
+    atr14 = ta.atr(14)
+    [_, _, adxVal] = ta.dmi(14, 14)
+    body = math.abs(close[1] - open[1])
+    fullRange = high[1] - low[1]
+    bodyPct = fullRange > 0 ? body / fullRange : 0.0
+    atrPct = ta.percentrank(atr14, 100)[1]
+    rangeDay = adxVal[1] < 20 and atrPct <= 40 and bodyPct <= 0.45
+    rangeDay ? 1.0 : 0.0
+
+d1RangeOk = request.security(syminfo.tickerid, "D", f_d1RangeRegime(), barmerge.gaps_off, barmerge.lookahead_off) == 1
+
+inAsian = not na(time(timeframe.period, asianSession, sessionTimezone))
+inEntry = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
+asianStart = inAsian and not inAsian[1]
+asianEnd = not inAsian and inAsian[1]
+
+var float asianHigh = na
+var float asianLow = na
+var float lockedAsianHigh = na
+var float lockedAsianLow = na
+var bool rangeReady = false
+
+if asianStart
+    asianHigh := high
+    asianLow := low
+    lockedAsianHigh := na
+    lockedAsianLow := na
+    rangeReady := false
+else if inAsian
+    asianHigh := na(asianHigh) ? high : math.max(asianHigh, high)
+    asianLow := na(asianLow) ? low : math.min(asianLow, low)
+
+if asianEnd
+    lockedAsianHigh := asianHigh
+    lockedAsianLow := asianLow
+    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow) and lockedAsianHigh > lockedAsianLow
+
+asianRangePips = rangeReady ? (lockedAsianHigh - lockedAsianLow) / pipSize : na
+asianMid = rangeReady ? (lockedAsianHigh + lockedAsianLow) / 2.0 : na
+rangeWidthOk = rangeReady and asianRangePips >= minRangePips and asianRangePips <= maxRangePips
+optimalRange = rangeReady and asianRangePips >= optimalMinPips and asianRangePips <= optimalMaxPips
+
+atr = ta.atr(atrLength)
+rsi = ta.rsi(close, rsiLength)
+
+var float sessionBreakHigh = na
+var float sessionBreakLow = na
+if asianEnd
+    sessionBreakHigh := na
+    sessionBreakLow := na
+else if inEntry and rangeReady
+    if high > lockedAsianHigh
+        sessionBreakHigh := na(sessionBreakHigh) ? high : math.max(sessionBreakHigh, high)
+    if low < lockedAsianLow
+        sessionBreakLow := na(sessionBreakLow) ? low : math.min(sessionBreakLow, low)
+
+falseBreakShort = inEntry and rangeWidthOk and d1RangeOk and not na(sessionBreakHigh) and close < lockedAsianHigh and close[1] >= lockedAsianHigh and rsi >= rsiOverbought
+falseBreakLong = inEntry and rangeWidthOk and d1RangeOk and not na(sessionBreakLow) and close > lockedAsianLow and close[1] <= lockedAsianLow and rsi <= rsiOversold
+
+clampStop(isLong, entry, extreme) =>
+    minDist = minStopPips * pipSize
+    maxDist = maxStopPips * pipSize
+    rawDist = isLong ? math.max(entry - extreme + atrStopMult * atr, atrStopMult * atr) : math.max(extreme - entry + atrStopMult * atr, atrStopMult * atr)
+    dist = math.max(minDist, math.min(maxDist, rawDist))
+    isLong ? entry - dist : entry + dist
+
+calcLongTarget(entry, stop) =>
+    risk = entry - stop
+    tp1 = asianMid
+    tp2 = lockedAsianHigh
+    risk > 0 ? tp2 : na
+
+calcShortTarget(entry, stop) =>
+    risk = stop - entry
+    tp1 = asianMid
+    tp2 = lockedAsianLow
+    risk > 0 ? tp2 : na
+
+shortSignal = falseBreakShort and not falseBreakShort[1]
+longSignal = falseBreakLong and not falseBreakLong[1]
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+if longSignal
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    extreme = na(sessionBreakLow) ? lockedAsianLow : sessionBreakLow
+    tradeStop := clampStop(true, close, extreme)
+    tradeTarget := calcLongTarget(close, tradeStop)
+else if shortSignal
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    extreme = na(sessionBreakHigh) ? lockedAsianHigh : sessionBreakHigh
+    tradeStop := clampStop(false, close, extreme)
+    tradeTarget := calcShortTarget(close, tradeStop)
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if not inEntry
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActive = (activeLong or activeShort) and not na(tradeEntry)
+newSetup = longSignal or shortSignal
+
+entryPrice = setupActive ? tradeEntry : na
+stopPrice = setupActive ? tradeStop : na
+targetPrice = setupActive ? tradeTarget : na
+activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(entryPrice, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(stopPrice, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(targetPrice, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(rangeReady ? lockedAsianHigh : na, "Asian High", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(rangeReady ? lockedAsianLow : na, "Asian Low", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(optimalRange ? 1 : 0, "Optimal Range", color=color.new(color.teal, 0))
+plot(d1RangeOk ? 1 : 0, "D1 Range Regime", color=color.new(color.gray, 0))
+
+plotshape(longSignal, "Fade Long", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="FB L")
+plotshape(shortSignal, "Fade Short", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="FB S")
+alertcondition(newSetup, "False Breakout New Setup", "New Asian false-breakout setup on {{ticker}}.")

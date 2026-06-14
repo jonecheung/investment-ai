@@ -1,0 +1,207 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+strategy(
+     "D1 Bias EMA Pullback Forex Strategy",
+     overlay=true,
+     pyramiding=0,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1,
+     commission_type=strategy.commission.cash_per_order,
+     commission_value=0.7,
+     slippage=1,
+     calc_on_order_fills=true,
+     process_orders_on_close=true)
+
+// Scenario 1 — D1-Bias EMA Pullback (Parallel Tier 1).
+// Chart: H1. D1 regime + M15 trigger via request.security. Session 07:00–14:00 UTC.
+
+sessionGroup = "Session"
+entrySession = input.session("0700-1400", "Entry Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+closeAtSessionEnd = input.bool(true, "Close At Session End", group=sessionGroup)
+blockNewEntries = input.bool(false, "Block All Entries (Holiday/Event)", group=sessionGroup)
+
+biasGroup = "D1 Regime"
+emaLength = input.int(21, "EMA Length", minval=1, group=biasGroup)
+adxLength = input.int(14, "ADX Length", minval=1, group=biasGroup)
+atrLength = input.int(14, "ATR Length", minval=1, group=biasGroup)
+atrStopMult = input.float(2.0, "ATR Stop Multiplier (H1)", minval=0.5, step=0.1, group=biasGroup)
+rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=biasGroup)
+partialPct = input.float(50.0, "Partial Close % At 1R", minval=0.0, maxval=100.0, step=5.0, group=biasGroup)
+timeStopHours = input.int(4, "Time Stop (hours)", minval=1, maxval=12, group=biasGroup)
+rsiLength = input.int(14, "M15 RSI Length", minval=1, group=biasGroup)
+rsiLongMin = input.int(35, "M15 RSI Long Min", minval=1, maxval=50, group=biasGroup)
+rsiLongMax = input.int(55, "M15 RSI Long Max", minval=50, maxval=99, group=biasGroup)
+emaTouchAtr = input.float(0.5, "EMA Touch Zone (H1 ATR fraction)", minval=0.1, step=0.05, group=biasGroup)
+minStopPips = input.float(15.0, "Min Stop (pips)", minval=1.0, step=1.0, group=biasGroup)
+maxStopPips = input.float(40.0, "Max Stop (pips)", minval=5.0, step=1.0, group=biasGroup)
+oneTradePerSession = input.bool(true, "One Trade Per Session", group=biasGroup)
+entryOnNextBar = input.bool(true, "Enter On Next Bar Open", group=biasGroup)
+
+riskGroup = "Position Sizing"
+useRiskSizing = input.bool(true, "Size By Risk % Of Equity", group=riskGroup)
+riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=5.0, step=0.1, group=riskGroup)
+fixedQty = input.float(1000.0, "Fixed Quantity (when risk sizing off)", minval=1.0, step=100.0, group=riskGroup)
+
+pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+
+f_d1Regime() =>
+    ema21 = ta.ema(close, 21)
+    atr14 = ta.atr(14)
+    [diPlus, diMinus, adxVal] = ta.dmi(14, 14)
+    body = math.abs(close[1] - open[1])
+    fullRange = high[1] - low[1]
+    bodyPct = fullRange > 0 ? body / fullRange : 0.0
+    atrPct = ta.percentrank(atr14, 100)[1]
+    emaUp = ema21[1] > ema21[4]
+    emaDown = ema21[1] < ema21[4]
+    bullDay = close[1] > open[1]
+    bearDay = close[1] < open[1]
+    strongTrend = adxVal[1] > 25
+    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= 0.55 and atrPct >= 50
+    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= 0.55 and atrPct >= 50
+    [longBias ? 1.0 : 0.0, shortBias ? 1.0 : 0.0, low[1], high[1]]
+
+[d1LongBias, d1ShortBias, d1PriorLow, d1PriorHigh] = request.security(
+     syminfo.tickerid, "D", f_d1Regime(), barmerge.gaps_off, barmerge.lookahead_off)
+
+f_m15Trigger() =>
+    ema21 = ta.ema(close, 21)
+    rsi = ta.rsi(close, 14)
+    touchLong = low <= ema21
+    rejectLong = close > ema21 and close > open
+    touchShort = high >= ema21
+    rejectShort = close < ema21 and close < open
+    [touchLong and rejectLong ? 1.0 : 0.0, touchShort and rejectShort ? 1.0 : 0.0, rsi]
+
+[m15LongTrig, m15ShortTrig, m15Rsi] = request.security(
+     syminfo.tickerid, "15", f_m15Trigger(), barmerge.gaps_off, barmerge.lookahead_off)
+
+h1Ema = ta.ema(close, emaLength)
+h1Atr = ta.atr(atrLength)
+inSession = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
+sessionEnded = not inSession and inSession[1]
+newSession = inSession and not inSession[1]
+
+var bool tradedThisSession = false
+if newSession
+    tradedThisSession := false
+
+h1AboveEma = close > h1Ema
+h1BelowEma = close < h1Ema
+h1TouchLong = low <= h1Ema + emaTouchAtr * h1Atr
+h1TouchShort = high >= h1Ema - emaTouchAtr * h1Atr
+h1RejectLong = close > h1Ema
+h1RejectShort = close < h1Ema
+rsiLongOk = m15Rsi >= rsiLongMin and m15Rsi <= rsiLongMax
+rsiShortOk = m15Rsi >= (100 - rsiLongMax) and m15Rsi <= (100 - rsiLongMin)
+canEnter = not oneTradePerSession or not tradedThisSession
+
+longReady = inSession and canEnter and d1LongBias == 1 and h1AboveEma and h1TouchLong and h1RejectLong and m15LongTrig == 1 and rsiLongOk
+shortReady = inSession and canEnter and d1ShortBias == 1 and h1BelowEma and h1TouchShort and h1RejectShort and m15ShortTrig == 1 and rsiShortOk
+
+clampStop(isLong, entry, rawStop) =>
+    minDist = minStopPips * pipSize
+    maxDist = maxStopPips * pipSize
+    dist = isLong ? entry - rawStop : rawStop - entry
+    clamped = math.max(minDist, math.min(maxDist, dist))
+    isLong ? entry - clamped : entry + clamped
+
+calcLongStop(entry) =>
+    structStop = math.min(d1PriorLow, entry - atrStopMult * h1Atr)
+    atrStop = entry - atrStopMult * h1Atr
+    raw = math.min(structStop, atrStop)
+    clampStop(true, entry, raw)
+
+calcShortStop(entry) =>
+    structStop = math.max(d1PriorHigh, entry + atrStopMult * h1Atr)
+    atrStop = entry + atrStopMult * h1Atr
+    raw = math.max(structStop, atrStop)
+    clampStop(false, entry, raw)
+
+var bool pendingLong = false
+var bool pendingShort = false
+var float pendingLongStop = na
+var float pendingShortStop = na
+var int entryBarIndex = na
+
+if strategy.position_size == 0 and canEnter
+    if longReady and not shortReady
+        pendingLong := true
+        pendingLongStop := calcLongStop(close)
+        pendingShort := false
+    else if shortReady and not longReady
+        pendingShort := true
+        pendingShortStop := calcShortStop(close)
+        pendingLong := false
+    else if longReady and shortReady
+        pendingLong := false
+        pendingShort := false
+
+longEntryNow = inSession and strategy.position_size == 0 and (entryOnNextBar ? (pendingLong[1] and canEnter) : pendingLong)
+shortEntryNow = inSession and strategy.position_size == 0 and (entryOnNextBar ? (pendingShort[1] and canEnter) : pendingShort)
+
+calcQty(entryPrice, stopPrice) =>
+    riskPerUnit = math.abs(entryPrice - stopPrice)
+    if not useRiskSizing
+        fixedQty
+    else if riskPerUnit <= syminfo.mintick
+        fixedQty
+    else
+        riskCash = strategy.equity * riskPct / 100.0
+        pointValue = nz(syminfo.pointvalue, 1.0)
+        qty = riskCash / (riskPerUnit * pointValue)
+        math.max(qty, 1.0)
+
+timeStopMs = timeStopHours * 60 * 60 * 1000
+
+if longEntryNow
+    entry = entryOnNextBar ? open : close
+    stop = entryOnNextBar ? pendingLongStop[1] : pendingLongStop
+    risk = entry - stop
+    if risk > syminfo.mintick
+        target1 = entry + risk
+        target2 = entry + rrRatio * risk
+        qty = calcQty(entry, stop)
+        strategy.entry("PB Long", strategy.long, qty=qty)
+        if partialPct > 0
+            strategy.exit("PB Long TP1", "PB Long", qty_percent=partialPct, limit=target1, stop=stop)
+            strategy.exit("PB Long TP2", "PB Long", limit=target2, stop=stop)
+        else
+            strategy.exit("PB Long Exit", "PB Long", stop=stop, limit=target2)
+        tradedThisSession := true
+        entryBarIndex := bar_index
+    pendingLong := false
+
+if shortEntryNow
+    entry = entryOnNextBar ? open : close
+    stop = entryOnNextBar ? pendingShortStop[1] : pendingShortStop
+    risk = stop - entry
+    if risk > syminfo.mintick
+        target1 = entry - risk
+        target2 = entry - rrRatio * risk
+        qty = calcQty(entry, stop)
+        strategy.entry("PB Short", strategy.short, qty=qty)
+        if partialPct > 0
+            strategy.exit("PB Short TP1", "PB Short", qty_percent=partialPct, limit=target1, stop=stop)
+            strategy.exit("PB Short TP2", "PB Short", limit=target2, stop=stop)
+        else
+            strategy.exit("PB Short Exit", "PB Short", stop=stop, limit=target2)
+        tradedThisSession := true
+        entryBarIndex := bar_index
+    pendingShort := false
+
+if strategy.position_size != 0 and not na(entryBarIndex)
+    if (bar_index - entryBarIndex) * timeframe.in_seconds(timeframe.period) * 1000 >= timeStopMs
+        strategy.close_all("Time Stop")
+
+if closeAtSessionEnd and sessionEnded and strategy.position_size != 0
+    strategy.close_all("Session End")
+    pendingLong := false
+    pendingShort := false
+
+plot(h1Ema, "H1 EMA", color=color.new(color.orange, 30))
+plotshape(longEntryNow, "Long Entry", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="L")
+plotshape(shortEntryNow, "Short Entry", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="S")
+bgcolor(inSession ? color.new(color.teal, 92) : na, title="Entry Session")

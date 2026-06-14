@@ -1,0 +1,176 @@
+//@version=5
+indicator("Vol Compression Expansion Forex Screener", overlay=true)
+
+// Pine Screener — Scenario 4: Expansion Day → Volatility-Compression Expansion.
+// Run on M15. D1 BB/Keltner squeeze + London breakout of Asian range.
+
+sessionGroup = "Sessions"
+asianSession = input.session("0000-0700", "Asian Range Session UTC", group=sessionGroup)
+entrySession = input.session("0715-1400", "Entry Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+blockNewEntries = input.bool(false, "Block All Setups (Holiday/Event)", group=sessionGroup)
+
+squeezeGroup = "D1 Compression"
+bbLength = input.int(20, "Bollinger Length", minval=1, group=squeezeGroup)
+bbMult = input.float(2.0, "BB StdDev", minval=0.5, step=0.1, group=squeezeGroup)
+keltnerLength = input.int(20, "Keltner Length", minval=1, group=squeezeGroup)
+keltnerMult = input.float(1.5, "Keltner ATR Mult", minval=0.5, step=0.1, group=squeezeGroup)
+squeezeBarsMin = input.int(2, "Min Consecutive Squeeze Bars (D1)", minval=1, group=squeezeGroup)
+d1AtrPctMax = input.float(30.0, "D1 ATR Percentile Max", minval=0.0, maxval=100.0, step=5.0, group=squeezeGroup)
+
+tradeGroup = "Trade Rules"
+atrLength = input.int(14, "ATR Length", minval=1, group=tradeGroup)
+atrStopMult = input.float(1.5, "ATR Stop Multiplier", minval=0.5, step=0.1, group=tradeGroup)
+rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=tradeGroup)
+volumeMult = input.float(1.3, "Volume Confirmation Mult", minval=1.0, step=0.05, group=tradeGroup)
+bodyPctMin = input.float(0.70, "Breakout Body % Min", minval=0.5, maxval=1.0, step=0.05, group=tradeGroup)
+maxStopPips = input.float(30.0, "Max Stop (pips)", minval=5.0, step=1.0, group=tradeGroup)
+
+pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+
+f_d1Squeeze() =>
+    basis = ta.sma(close, 20)
+    dev = bbMult * ta.stdev(close, 20)
+    bbUpper = basis + dev
+    bbLower = basis - dev
+    bbWidth = bbUpper - bbLower
+    kMid = ta.ema(close, 20)
+    kRange = keltnerMult * ta.atr(14)
+    kUpper = kMid + kRange
+    kLower = kMid - kRange
+    kWidth = kUpper - kLower
+    squeeze = bbWidth < kWidth
+    atr14 = ta.atr(14)
+    atrPct = ta.percentrank(atr14, 100)[1]
+    priorRange = high[1] - low[1]
+    avgRange = ta.sma(high - low, 20)[1]
+    lowVolDay = atrPct <= 30 and priorRange < avgRange * 0.7
+    squeezeCount = ta.barssince(not squeeze)
+    squeezeActive = squeeze and squeeze[1] and squeezeCount >= squeezeBarsMin - 1
+    [squeezeActive ? 1.0 : 0.0, lowVolDay ? 1.0 : 0.0]
+
+[d1SqueezeOk, d1LowVolOk] = request.security(
+     syminfo.tickerid, "D", f_d1Squeeze(), barmerge.gaps_off, barmerge.lookahead_off)
+
+inAsian = not na(time(timeframe.period, asianSession, sessionTimezone))
+inEntry = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
+asianStart = inAsian and not inAsian[1]
+asianEnd = not inAsian and inAsian[1]
+
+var float asianHigh = na
+var float asianLow = na
+var float lockedAsianHigh = na
+var float lockedAsianLow = na
+var bool rangeReady = false
+
+if asianStart
+    asianHigh := high
+    asianLow := low
+    lockedAsianHigh := na
+    lockedAsianLow := na
+    rangeReady := false
+else if inAsian
+    asianHigh := na(asianHigh) ? high : math.max(asianHigh, high)
+    asianLow := na(asianLow) ? low : math.min(asianLow, low)
+
+if asianEnd
+    lockedAsianHigh := asianHigh
+    lockedAsianLow := asianLow
+    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow) and lockedAsianHigh > lockedAsianLow
+
+asianMid = rangeReady ? (lockedAsianHigh + lockedAsianLow) / 2.0 : na
+atr = ta.atr(atrLength)
+volAvg = ta.sma(volume, 20)
+body = math.abs(close - open)
+barRange = high - low
+bodyPct = barRange > 0 ? body / barRange : 0.0
+volOk = volume > volumeMult * volAvg
+
+longBreak = inEntry and rangeReady and d1SqueezeOk == 1 and d1LowVolOk == 1 and close > lockedAsianHigh and close[1] <= lockedAsianHigh and bodyPct >= bodyPctMin and volOk
+shortBreak = inEntry and rangeReady and d1SqueezeOk == 1 and d1LowVolOk == 1 and close < lockedAsianLow and close[1] >= lockedAsianLow and bodyPct >= bodyPctMin and volOk
+
+clampStopLong(entry) =>
+    atrStop = entry - atrStopMult * atr
+    midStop = asianMid
+    raw = math.max(atrStop, midStop)
+    maxDist = maxStopPips * pipSize
+    dist = math.min(entry - raw, maxDist)
+    entry - math.max(dist, syminfo.mintick)
+
+clampStopShort(entry) =>
+    atrStop = entry + atrStopMult * atr
+    midStop = asianMid
+    raw = math.min(atrStop, midStop)
+    maxDist = maxStopPips * pipSize
+    dist = math.min(raw - entry, maxDist)
+    entry + math.max(dist, syminfo.mintick)
+
+longSignal = longBreak and not longBreak[1]
+shortSignal = shortBreak and not shortBreak[1]
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+if longSignal
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    tradeStop := clampStopLong(close)
+    risk = tradeEntry - tradeStop
+    tradeTarget := risk > 0 ? tradeEntry + rrRatio * risk : na
+else if shortSignal
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    tradeStop := clampStopShort(close)
+    risk = tradeStop - tradeEntry
+    tradeTarget := risk > 0 ? tradeEntry - rrRatio * risk : na
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget or (rangeReady and close < lockedAsianHigh)
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget or (rangeReady and close > lockedAsianLow)
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if not inEntry
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActive = (activeLong or activeShort) and not na(tradeEntry)
+newSetup = longSignal or shortSignal
+
+entryPrice = setupActive ? tradeEntry : na
+stopPrice = setupActive ? tradeStop : na
+targetPrice = setupActive ? tradeTarget : na
+activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(entryPrice, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(stopPrice, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(targetPrice, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(rangeReady ? lockedAsianHigh : na, "Asian High", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(rangeReady ? lockedAsianLow : na, "Asian Low", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(d1SqueezeOk, "D1 Squeeze", color=color.new(color.teal, 0))
+plot(volOk ? 1 : 0, "Volume Confirm", color=color.new(color.gray, 0))
+
+plotshape(longSignal, "Expansion Long", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="EXP L")
+plotshape(shortSignal, "Expansion Short", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="EXP S")
+alertcondition(newSetup, "Compression Expansion Setup", "New vol-compression expansion setup on {{ticker}}.")

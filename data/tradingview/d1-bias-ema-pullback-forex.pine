@@ -1,0 +1,169 @@
+//@version=5
+indicator("D1 Bias EMA Pullback Forex Screener", overlay=true)
+
+// Pine Screener — Scenario 1: Strong Trend Day → D1-Bias EMA Pullback.
+// Run on H1 chart; D1 regime + M15 entry via request.security.
+// Parallel playbook: ADX classifies scenario; entry from H1/M15 structure.
+
+sessionGroup = "Session"
+entrySession = input.session("0700-1400", "Entry Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+blockNewEntries = input.bool(false, "Block All Setups (Holiday/Event)", group=sessionGroup)
+
+biasGroup = "D1 Regime (Scenario 1)"
+emaLength = input.int(21, "EMA Length", minval=1, group=biasGroup)
+adxLength = input.int(14, "ADX Length", minval=1, group=biasGroup)
+adxClassifyMin = input.int(25, "ADX Min For Strong Trend", minval=1, group=biasGroup)
+d1BodyPctMin = input.float(0.55, "D1 Body % Min (prior day)", minval=0.0, maxval=1.0, step=0.05, group=biasGroup)
+d1AtrPctMin = input.float(50.0, "D1 ATR Percentile Min", minval=0.0, maxval=100.0, step=5.0, group=biasGroup)
+
+entryGroup = "Entry & Risk"
+atrLength = input.int(14, "ATR Length", minval=1, group=entryGroup)
+atrStopMult = input.float(2.0, "ATR Stop Multiplier (H1)", minval=0.5, step=0.1, group=entryGroup)
+rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=entryGroup)
+rsiLength = input.int(14, "M15 RSI Length", minval=1, group=entryGroup)
+rsiLongMin = input.int(35, "M15 RSI Long Min", minval=1, maxval=50, group=entryGroup)
+rsiLongMax = input.int(55, "M15 RSI Long Max", minval=50, maxval=99, group=entryGroup)
+emaTouchAtr = input.float(0.5, "EMA Touch Zone (H1 ATR fraction)", minval=0.1, step=0.05, group=entryGroup)
+minStopPips = input.float(15.0, "Min Stop (pips)", minval=1.0, step=1.0, group=entryGroup)
+maxStopPips = input.float(40.0, "Max Stop (pips)", minval=5.0, step=1.0, group=entryGroup)
+
+pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+
+f_d1Regime() =>
+    ema21 = ta.ema(close, 21)
+    atr14 = ta.atr(14)
+    [diPlus, diMinus, adxVal] = ta.dmi(14, 14)
+    body = math.abs(close[1] - open[1])
+    fullRange = high[1] - low[1]
+    bodyPct = fullRange > 0 ? body / fullRange : 0.0
+    atrPct = ta.percentrank(atr14, 100)[1]
+    emaUp = ema21[1] > ema21[4]
+    emaDown = ema21[1] < ema21[4]
+    bullDay = close[1] > open[1]
+    bearDay = close[1] < open[1]
+    strongTrend = adxVal[1] > 25
+    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= 0.55 and atrPct >= 50
+    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= 0.55 and atrPct >= 50
+    [longBias ? 1.0 : 0.0, shortBias ? 1.0 : 0.0, low[1], high[1]]
+
+[d1LongBias, d1ShortBias, d1PriorLow, d1PriorHigh] = request.security(
+     syminfo.tickerid, "D", f_d1Regime(), barmerge.gaps_off, barmerge.lookahead_off)
+
+f_m15Trigger() =>
+    ema21 = ta.ema(close, 21)
+    rsi = ta.rsi(close, 14)
+    touchLong = low <= ema21
+    rejectLong = close > ema21 and close > open
+    touchShort = high >= ema21
+    rejectShort = close < ema21 and close < open
+    [touchLong and rejectLong ? 1.0 : 0.0, touchShort and rejectShort ? 1.0 : 0.0, rsi]
+
+[m15LongTrig, m15ShortTrig, m15Rsi] = request.security(
+     syminfo.tickerid, "15", f_m15Trigger(), barmerge.gaps_off, barmerge.lookahead_off)
+
+h1Ema = ta.ema(close, emaLength)
+h1Atr = ta.atr(atrLength)
+inSession = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
+
+h1AboveEma = close > h1Ema
+h1BelowEma = close < h1Ema
+h1TouchLong = low <= h1Ema + emaTouchAtr * h1Atr
+h1TouchShort = high >= h1Ema - emaTouchAtr * h1Atr
+h1RejectLong = close > h1Ema
+h1RejectShort = close < h1Ema
+
+rsiLongOk = m15Rsi >= rsiLongMin and m15Rsi <= rsiLongMax
+rsiShortOk = m15Rsi >= (100 - rsiLongMax) and m15Rsi <= (100 - rsiLongMin)
+
+longReady = inSession and d1LongBias == 1 and h1AboveEma and h1TouchLong and h1RejectLong and m15LongTrig == 1 and rsiLongOk
+shortReady = inSession and d1ShortBias == 1 and h1BelowEma and h1TouchShort and h1RejectShort and m15ShortTrig == 1 and rsiShortOk
+
+clampStop(isLong, entry, rawStop) =>
+    minDist = minStopPips * pipSize
+    maxDist = maxStopPips * pipSize
+    dist = isLong ? entry - rawStop : rawStop - entry
+    clamped = math.max(minDist, math.min(maxDist, dist))
+    isLong ? entry - clamped : entry + clamped
+
+calcLongStop(entry) =>
+    structStop = math.min(d1PriorLow, entry - atrStopMult * h1Atr)
+    atrStop = entry - atrStopMult * h1Atr
+    raw = math.min(structStop, atrStop)
+    clampStop(true, entry, raw)
+
+calcShortStop(entry) =>
+    structStop = math.max(d1PriorHigh, entry + atrStopMult * h1Atr)
+    atrStop = entry + atrStopMult * h1Atr
+    raw = math.max(structStop, atrStop)
+    clampStop(false, entry, raw)
+
+longSignal = longReady and not longReady[1]
+shortSignal = shortReady and not shortReady[1]
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+if longSignal
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    tradeStop := calcLongStop(close)
+    risk = tradeEntry - tradeStop
+    tradeTarget := risk > 0 ? tradeEntry + rrRatio * risk : na
+else if shortSignal
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    tradeStop := calcShortStop(close)
+    risk = tradeStop - tradeEntry
+    tradeTarget := risk > 0 ? tradeEntry - rrRatio * risk : na
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if not inSession
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActive = (activeLong or activeShort) and not na(tradeEntry)
+newSetup = longSignal or shortSignal
+
+entryPrice = setupActive ? tradeEntry : na
+stopPrice = setupActive ? tradeStop : na
+targetPrice = setupActive ? tradeTarget : na
+activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(entryPrice, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(stopPrice, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(targetPrice, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(d1LongBias, "D1 Long Bias", color=color.new(color.teal, 0))
+plot(d1ShortBias, "D1 Short Bias", color=color.new(color.orange, 0))
+plot(inSession ? 1 : 0, "In Session", color=color.new(color.gray, 0))
+plot(h1Ema, "H1 EMA", color=color.new(color.yellow, 30))
+
+plotshape(longSignal, "Long Pullback", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="PB L")
+plotshape(shortSignal, "Short Pullback", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="PB S")
+alertcondition(newSetup, "D1 Pullback New Setup", "New D1-bias EMA pullback setup on {{ticker}}.")

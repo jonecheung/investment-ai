@@ -1,0 +1,215 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+strategy(
+     "Vol Compression Expansion Forex Strategy",
+     overlay=true,
+     pyramiding=0,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1,
+     commission_type=strategy.commission.cash_per_order,
+     commission_value=0.7,
+     slippage=1,
+     calc_on_order_fills=true,
+     process_orders_on_close=true)
+
+// Scenario 4 — Volatility-Compression Expansion (Parallel Tier 2).
+// Chart: M15. D1 squeeze + London breakout with volume confirmation.
+
+sessionGroup = "Sessions"
+asianSession = input.session("0000-0700", "Asian Range Session UTC", group=sessionGroup)
+entrySession = input.session("0715-1400", "Entry Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+closeAtSessionEnd = input.bool(true, "Close At Session End", group=sessionGroup)
+blockNewEntries = input.bool(false, "Block All Entries (Holiday/Event)", group=sessionGroup)
+
+squeezeGroup = "D1 Compression"
+bbMult = input.float(2.0, "BB StdDev", minval=0.5, step=0.1, group=squeezeGroup)
+keltnerMult = input.float(1.5, "Keltner ATR Mult", minval=0.5, step=0.1, group=squeezeGroup)
+squeezeBarsMin = input.int(2, "Min Consecutive Squeeze Bars (D1)", minval=1, group=squeezeGroup)
+
+tradeGroup = "Trade Rules"
+atrLength = input.int(14, "ATR Length", minval=1, group=tradeGroup)
+atrStopMult = input.float(1.5, "ATR Stop Multiplier", minval=0.5, step=0.1, group=tradeGroup)
+rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=tradeGroup)
+volumeMult = input.float(1.3, "Volume Confirmation Mult", minval=1.0, step=0.05, group=tradeGroup)
+bodyPctMin = input.float(0.70, "Breakout Body % Min", minval=0.5, maxval=1.0, step=0.05, group=tradeGroup)
+partialPct = input.float(50.0, "Partial Close % At 1R", minval=0.0, maxval=100.0, step=5.0, group=tradeGroup)
+timeStopMinutes = input.int(60, "Time Stop (minutes)", minval=15, maxval=240, group=tradeGroup)
+maxStopPips = input.float(30.0, "Max Stop (pips)", minval=5.0, step=1.0, group=tradeGroup)
+oneTradePerDay = input.bool(true, "One Trade Per Day", group=tradeGroup)
+entryOnNextBar = input.bool(true, "Enter On Next Bar Open", group=tradeGroup)
+
+riskGroup = "Position Sizing"
+useRiskSizing = input.bool(true, "Size By Risk % Of Equity", group=riskGroup)
+riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=5.0, step=0.1, group=riskGroup)
+fixedQty = input.float(1000.0, "Fixed Quantity", minval=1.0, step=100.0, group=riskGroup)
+
+pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+
+f_d1Squeeze() =>
+    basis = ta.sma(close, 20)
+    dev = bbMult * ta.stdev(close, 20)
+    bbUpper = basis + dev
+    bbLower = basis - dev
+    bbWidth = bbUpper - bbLower
+    kMid = ta.ema(close, 20)
+    kRange = keltnerMult * ta.atr(14)
+    kUpper = kMid + kRange
+    kLower = kMid - kRange
+    kWidth = kUpper - kLower
+    squeeze = bbWidth < kWidth
+    atr14 = ta.atr(14)
+    atrPct = ta.percentrank(atr14, 100)[1]
+    priorRange = high[1] - low[1]
+    avgRange = ta.sma(high - low, 20)[1]
+    lowVolDay = atrPct <= 30 and priorRange < avgRange * 0.7
+    squeezeCount = ta.barssince(not squeeze)
+    squeezeActive = squeeze and squeeze[1] and squeezeCount >= squeezeBarsMin - 1
+    [squeezeActive ? 1.0 : 0.0, lowVolDay ? 1.0 : 0.0]
+
+[d1SqueezeOk, d1LowVolOk] = request.security(
+     syminfo.tickerid, "D", f_d1Squeeze(), barmerge.gaps_off, barmerge.lookahead_off)
+
+inAsian = not na(time(timeframe.period, asianSession, sessionTimezone))
+inEntry = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
+asianStart = inAsian and not inAsian[1]
+asianEnd = not inAsian and inAsian[1]
+entryEnded = not inEntry and inEntry[1]
+
+var float asianHigh = na
+var float asianLow = na
+var float lockedAsianHigh = na
+var float lockedAsianLow = na
+var bool rangeReady = false
+var bool tradedToday = false
+var int entryBarIndex = na
+
+if asianStart
+    asianHigh := high
+    asianLow := low
+    lockedAsianHigh := na
+    lockedAsianLow := na
+    rangeReady := false
+    tradedToday := false
+else if inAsian
+    asianHigh := na(asianHigh) ? high : math.max(asianHigh, high)
+    asianLow := na(asianLow) ? low : math.min(asianLow, low)
+
+if asianEnd
+    lockedAsianHigh := asianHigh
+    lockedAsianLow := asianLow
+    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow) and lockedAsianHigh > lockedAsianLow
+
+asianMid = rangeReady ? (lockedAsianHigh + lockedAsianLow) / 2.0 : na
+atr = ta.atr(atrLength)
+volAvg = ta.sma(volume, 20)
+body = math.abs(close - open)
+barRange = high - low
+bodyPct = barRange > 0 ? body / barRange : 0.0
+volOk = volume > volumeMult * volAvg
+canEnter = not oneTradePerDay or not tradedToday
+
+longBreak = inEntry and canEnter and rangeReady and d1SqueezeOk == 1 and d1LowVolOk == 1 and close > lockedAsianHigh and close[1] <= lockedAsianHigh and bodyPct >= bodyPctMin and volOk
+shortBreak = inEntry and canEnter and rangeReady and d1SqueezeOk == 1 and d1LowVolOk == 1 and close < lockedAsianLow and close[1] >= lockedAsianLow and bodyPct >= bodyPctMin and volOk
+
+clampStopLong(entry) =>
+    atrStop = entry - atrStopMult * atr
+    midStop = asianMid
+    raw = math.max(atrStop, midStop)
+    maxDist = maxStopPips * pipSize
+    dist = math.min(entry - raw, maxDist)
+    entry - math.max(dist, syminfo.mintick)
+
+clampStopShort(entry) =>
+    atrStop = entry + atrStopMult * atr
+    midStop = asianMid
+    raw = math.min(atrStop, midStop)
+    maxDist = maxStopPips * pipSize
+    dist = math.min(raw - entry, maxDist)
+    entry + math.max(dist, syminfo.mintick)
+
+var bool pendingLong = false
+var bool pendingShort = false
+var float pendingLongStop = na
+var float pendingShortStop = na
+
+if strategy.position_size == 0 and canEnter
+    if longBreak and not shortBreak
+        pendingLong := true
+        pendingLongStop := clampStopLong(close)
+        pendingShort := false
+    else if shortBreak and not longBreak
+        pendingShort := true
+        pendingShortStop := clampStopShort(close)
+        pendingLong := false
+    else if longBreak and shortBreak
+        pendingLong := false
+        pendingShort := false
+
+longEntryNow = inEntry and strategy.position_size == 0 and (entryOnNextBar ? (pendingLong[1] and canEnter) : pendingLong)
+shortEntryNow = inEntry and strategy.position_size == 0 and (entryOnNextBar ? (pendingShort[1] and canEnter) : pendingShort)
+
+calcQty(entryPrice, stopPrice) =>
+    riskPerUnit = math.abs(entryPrice - stopPrice)
+    if not useRiskSizing
+        fixedQty
+    else if riskPerUnit <= syminfo.mintick
+        fixedQty
+    else
+        riskCash = strategy.equity * riskPct / 100.0
+        pointValue = nz(syminfo.pointvalue, 1.0)
+        math.max(riskCash / (riskPerUnit * pointValue), 1.0)
+
+timeStopMs = timeStopMinutes * 60 * 1000
+
+if longEntryNow
+    entry = entryOnNextBar ? open : close
+    stop = entryOnNextBar ? pendingLongStop[1] : pendingLongStop
+    risk = entry - stop
+    if risk > syminfo.mintick
+        target1 = entry + risk
+        target2 = entry + rrRatio * risk
+        qty = calcQty(entry, stop)
+        strategy.entry("EXP Long", strategy.long, qty=qty)
+        if partialPct > 0
+            strategy.exit("EXP Long TP1", "EXP Long", qty_percent=partialPct, limit=target1, stop=stop)
+            strategy.exit("EXP Long TP2", "EXP Long", limit=target2, stop=stop)
+        else
+            strategy.exit("EXP Long Exit", "EXP Long", stop=stop, limit=target2)
+        tradedToday := true
+        entryBarIndex := bar_index
+    pendingLong := false
+
+if shortEntryNow
+    entry = entryOnNextBar ? open : close
+    stop = entryOnNextBar ? pendingShortStop[1] : pendingShortStop
+    risk = stop - entry
+    if risk > syminfo.mintick
+        target1 = entry - risk
+        target2 = entry - rrRatio * risk
+        qty = calcQty(entry, stop)
+        strategy.entry("EXP Short", strategy.short, qty=qty)
+        if partialPct > 0
+            strategy.exit("EXP Short TP1", "EXP Short", qty_percent=partialPct, limit=target1, stop=stop)
+            strategy.exit("EXP Short TP2", "EXP Short", limit=target2, stop=stop)
+        else
+            strategy.exit("EXP Short Exit", "EXP Short", stop=stop, limit=target2)
+        tradedToday := true
+        entryBarIndex := bar_index
+    pendingShort := false
+
+if strategy.position_size != 0 and not na(entryBarIndex)
+    elapsedMs = (bar_index - entryBarIndex) * timeframe.in_seconds(timeframe.period) * 1000
+    failedBreak = (strategy.position_size > 0 and rangeReady and close < lockedAsianHigh) or (strategy.position_size < 0 and rangeReady and close > lockedAsianLow)
+    if elapsedMs >= timeStopMs or failedBreak
+        strategy.close_all(failedBreak ? "Failed Break" : "Time Stop")
+
+if closeAtSessionEnd and entryEnded and strategy.position_size != 0
+    strategy.close_all("Session End")
+
+plot(rangeReady ? lockedAsianHigh : na, "Asian High", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(rangeReady ? lockedAsianLow : na, "Asian Low", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plotshape(longEntryNow, "Long Entry", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="L")
+plotshape(shortEntryNow, "Short Entry", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="S")
+bgcolor(inEntry ? color.new(color.teal, 92) : na, title="Entry Session")
