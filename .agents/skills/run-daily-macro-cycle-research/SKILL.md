@@ -6,9 +6,12 @@ disable-model-invocation: true
 
 # Run Daily Macro Cycle Research
 
-Start the standardized macro-cycle regime scan from `Research Ideas`, submit it to Parallel Deep Research, and log kickoff metadata in `Research Runs`.
+Start the standardized macro-cycle regime scan from `Research Ideas`, submit it to Parallel research, and log kickoff metadata in `Research Runs`.
 
-This skill is intended for scheduled automation. It does not poll results; result polling and summary sync remain the responsibility of `poll-deep-research-runs`.
+This skill is intended for scheduled automation. Kickoff and polling are separate:
+
+- `scripts/run.sh` starts a run and logs kickoff metadata.
+- `scripts/poll.sh` polls running Notion records and syncs completed summaries.
 
 ## Safety
 
@@ -24,7 +27,7 @@ This skill is intended for scheduled automation. It does not poll results; resul
 
 Optional:
 
-- `PARALLEL_PROCESSOR` defaults to `pro-fast`
+- `PARALLEL_PROCESSOR` defaults to `base`
 - `MACRO_RESEARCH_IDEA_TITLE` defaults to `Daily Macro Cycle Regime Scan Before EU Session`
 - `MACRO_PROMPT_PATH` defaults to `data/prompts/macro-cycle-regime-scan.md`
 
@@ -55,6 +58,18 @@ bash .agents/skills/run-daily-macro-cycle-research/scripts/run.sh
    - `Last Run ID`
    - `Last Run At`
 
+## Manual Poll
+
+```bash
+bash .agents/skills/run-daily-macro-cycle-research/scripts/poll.sh
+```
+
+Polling updates completed runs in `Research Runs` and their linked `Research Ideas` with:
+
+- `Status = Completed`
+- `Completed At`
+- `Executive Summary`
+
 ## Scheduling
 
-The paired GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the European trading session. It approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
+The paired kickoff GitHub Actions workflow runs Monday-Friday at 06:30 UTC, before the European trading session. A polling workflow checks running research records every 15 minutes during weekday EU/US trading hours. This approximates trading days by weekday; market holidays are not filtered unless the workflow is extended with a holiday calendar.
