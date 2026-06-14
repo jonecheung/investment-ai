@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Daily FX Intraday Strategy Brief Output",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version, e.g. v1.0."
+    },
+    "trade_date": {
+      "type": "string",
+      "description": "UTC trade date YYYY-MM-DD."
+    },
+    "executive_summary": {
+      "type": "string",
+      "description": "≤300 words. Primary strategy recommendation for today."
+    },
+    "global_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "liquidity_status": {
+          "type": "string",
+          "enum": ["normal", "thin", "holiday", "mixed"]
+        },
+        "high_impact_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "event_name": { "type": "string" },
+              "time_utc": { "type": "string" },
+              "affected_pairs": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["event_name", "time_utc", "affected_pairs"]
+          }
+        },
+        "risk_regime": {
+          "type": "string",
+          "enum": ["risk_on", "risk_off", "neutral", "unknown"]
+        },
+        "risk_regime_notes": { "type": "string" }
+      },
+      "required": ["liquidity_status", "high_impact_events", "risk_regime", "risk_regime_notes"]
+    },
+    "pair_recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pair": {
+            "type": "string",
+            "description": "FX pair symbol, e.g. EURUSD."
+          },
+          "scenario_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "Scenario taxonomy ID 1-8."
+          },
+          "scenario_name": { "type": "string" },
+          "template_id": {
+            "type": "string",
+            "enum": [
+              "T0_NO_TRADE",
+              "T1_PULLBACK",
+              "T2_FALSE_BREAKOUT",
+              "T3_EXPANSION",
+              "T4_SWING_BACKUP"
+            ]
+          },
+          "strategy_name": { "type": "string" },
+          "d1_bias": {
+            "type": "string",
+            "enum": ["Long", "Short", "Neutral"]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["High", "Medium", "Low"]
+          },
+          "chart_timeframe": {
+            "type": "string",
+            "description": "e.g. H1, M15, 1D, or N/A."
+          },
+          "entry_session_utc": {
+            "type": "string",
+            "description": "e.g. 0700-1400 or N/A."
+          },
+          "pine_screener": {
+            "type": "string",
+            "description": "Filename under data/tradingview/ or empty."
+          },
+          "pine_strategy": {
+            "type": "string",
+            "description": "Filename under data/tradingview/ or empty."
+          },
+          "trade_allowed": {
+            "type": "boolean",
+            "description": "False when template_id is T0_NO_TRADE."
+          },
+          "rationale": { "type": "string" },
+          "london_open_checklist": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "do_not_trade_if": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "pair",
+          "scenario_id",
+          "scenario_name",
+          "template_id",
+          "strategy_name",
+          "d1_bias",
+          "confidence",
+          "chart_timeframe",
+          "entry_session_utc",
+          "pine_screener",
+          "pine_strategy",
+          "trade_allowed",
+          "rationale",
+          "london_open_checklist",
+          "do_not_trade_if"
+        ]
+      }
+    },
+    "priority_execution_queue": {
+      "type": "array",
+      "description": "Ordered list of top setups for the day (max 3 suggested).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rank": { "type": "integer", "minimum": 1 },
+          "pair": { "type": "string" },
+          "template_id": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "required": ["rank", "pair", "template_id", "reason"]
+      }
+    },
+    "output_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fact_assumption_boundary": { "type": "string" },
+        "missing_information": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "uncertainty_notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["fact_assumption_boundary", "missing_information", "uncertainty_notes"]
+    }
+  },
+  "required": [
+    "schema_version",
+    "trade_date",
+    "executive_summary",
+    "global_context",
+    "pair_recommendations",
+    "priority_execution_queue",
+    "output_quality"
+  ]
+}

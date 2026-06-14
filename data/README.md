@@ -20,8 +20,8 @@ data/
 | --- | --- | --- |
 | `notion/` | Notion database structure only | `research.md`, `portfolio.md` |
 | `portfolio/` | Portfolio planning policy and guardrails | `guardrails.yaml`, `guardrails.md` |
-| `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md` |
-| `prompts/` | Reusable prompts for other workflows | `research-idea-brief.md` |
+| `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md`, `output-daily-fx-strategy-brief.json`, `prompt-daily-fx-strategy-brief.md` |
+| `prompts/` | Reusable prompts for other workflows | `research-idea-brief.md`, `daily-fx-strategy-original-idea.md` |
 | `tradingview/` | TradingView watchlist `.txt` exports (local/gitignored) and Pine Screener `.pine` scripts (tracked) | `2026-06-06-trun_abc123.txt`, `supertrend-ema-atr-long.pine` |
 
 ## File Naming
