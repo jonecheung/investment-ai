@@ -149,6 +149,7 @@ Project skills live under `.agents/skills/`. Prefer skills and CLI tools over MC
 | `parallel-deep-research` | Parallel deep research runs |
 | `expand-new-ideas` | Expand `Research Ideas` from `Original Idea` to `Research Input` |
 | `run-expanded-ideas-deep-research` | Start deep research for eligible expanded ideas |
+| `run-daily-macro-cycle-research` | Scheduled macro-cycle regime scan kickoff before the European trading session |
 | `poll-deep-research-runs` | Poll in-flight runs and sync summaries to Notion |
 | `followup-tradable-tickers` | Parallel Task follow-up, validate ticker JSON, import `Trading Proposals` |
 | `export-tv-watchlist` | Export watchlist locally and provision per-run Fast.io session with `watchlist.txt` |
