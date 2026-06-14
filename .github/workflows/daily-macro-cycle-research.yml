@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
       PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
       PARALLEL_PROCESSOR: pro-fast
@@ -29,6 +30,7 @@ jobs:
 
       - name: Install Parallel CLI
         run: |
+          mkdir -p "$HOME/.local/bin" "$HOME/.local/share"
           curl -fsSL https://parallel.ai/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
