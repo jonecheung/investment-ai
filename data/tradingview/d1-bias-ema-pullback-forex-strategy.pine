@@ -1,6 +1,6 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
-// Template T1_PULLBACK | Chart: H1 | Pairs: EURUSD, GBPUSD, USDJPY | Session: 07:00-14:00 UTC
+// Template T1_PULLBACK | Recommended chart: H1 (works on M15 too) | One strategy per chart!
 strategy(
      "T1 D1 Bias EMA Pullback Forex Strategy",
      overlay=true,
@@ -14,8 +14,15 @@ strategy(
      calc_on_order_fills=true,
      process_orders_on_close=true)
 
-// Scenario 1 — D1-Bias EMA Pullback (Parallel Tier 1).
-// Chart: H1. D1 regime + M15 trigger via request.security. Session 07:00–14:00 UTC.
+// v2 — Filter Preset fixes low trade count. Default "Balanced" targets ~60+ trades/year.
+
+presetGroup = "Filter Preset"
+filterPreset = input.string(
+     "Balanced",
+     "Filter Preset",
+     options=["Strict (Playbook)", "Balanced", "Relaxed"],
+     group=presetGroup,
+     tooltip="Strict = research playbook (very few trades). Balanced = default backtest. Relaxed = more signals.")
 
 sessionGroup = "Session"
 entrySession = input.session("0700-1400", "Entry Session UTC", group=sessionGroup)
@@ -25,22 +32,18 @@ blockNewEntries = input.bool(false, "Block All Entries (Holiday/Event)", group=s
 
 biasGroup = "D1 Regime"
 emaLength = input.int(21, "EMA Length", minval=1, group=biasGroup)
-adxClassifyMin = input.int(25, "ADX Min For Strong Trend (classification)", minval=1, group=biasGroup)
-d1BodyPctMin = input.float(0.55, "D1 Body % Min (prior day)", minval=0.0, maxval=1.0, step=0.05, group=biasGroup)
-d1AtrPctMin = input.float(50.0, "D1 ATR Percentile Min", minval=0.0, maxval=100.0, step=5.0, group=biasGroup)
 atrLength = input.int(14, "ATR Length", minval=1, group=biasGroup)
 atrStopMult = input.float(2.0, "ATR Stop Multiplier (H1)", minval=0.5, step=0.1, group=biasGroup)
 rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=biasGroup)
 partialPct = input.float(50.0, "Partial Close % At 1R", minval=0.0, maxval=100.0, step=5.0, group=biasGroup)
 timeStopHours = input.int(4, "Time Stop (hours)", minval=1, maxval=12, group=biasGroup)
-rsiLength = input.int(14, "M15 RSI Length", minval=1, group=biasGroup)
-rsiLongMin = input.int(35, "M15 RSI Long Min", minval=1, maxval=50, group=biasGroup)
-rsiLongMax = input.int(55, "M15 RSI Long Max", minval=50, maxval=99, group=biasGroup)
 emaTouchAtr = input.float(0.5, "EMA Touch Zone (H1 ATR fraction)", minval=0.1, step=0.05, group=biasGroup)
 minStopPips = input.float(15.0, "Min Stop (pips)", minval=1.0, step=1.0, group=biasGroup)
 maxStopPips = input.float(40.0, "Max Stop (pips)", minval=5.0, step=1.0, group=biasGroup)
-oneTradePerSession = input.bool(true, "One Trade Per Session", group=biasGroup)
+oneTradePerSession = input.bool(false, "One Trade Per Session", group=biasGroup)
 entryOnNextBar = input.bool(true, "Enter On Next Bar Open", group=biasGroup)
+requireM15Confirm = input.bool(false, "Require M15 EMA Rejection", group=biasGroup)
+requireRsiConfirm = input.bool(false, "Require M15 RSI Zone", group=biasGroup)
 
 riskGroup = "Position Sizing"
 useRiskSizing = input.bool(true, "Size By Risk % Of Equity", group=riskGroup)
@@ -48,8 +51,11 @@ riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=5.0, step=0.
 fixedQty = input.float(1000.0, "Fixed Quantity (when risk sizing off)", minval=1.0, step=100.0, group=riskGroup)
 
 pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+isStrict = filterPreset == "Strict (Playbook)"
+isBalanced = filterPreset == "Balanced"
+isRelaxed = filterPreset == "Relaxed"
 
-f_d1Regime() =>
+f_d1Raw() =>
     ema21 = ta.ema(close, 21)
     atr14 = ta.atr(14)
     [diPlus, diMinus, adxVal] = ta.dmi(14, 14)
@@ -61,28 +67,47 @@ f_d1Regime() =>
     emaDown = ema21[1] < ema21[4]
     bullDay = close[1] > open[1]
     bearDay = close[1] < open[1]
-    strongTrend = adxVal[1] > adxClassifyMin
-    longBias = strongTrend and diPlus[1] > diMinus[1] and emaUp and bullDay and bodyPct >= d1BodyPctMin and atrPct >= d1AtrPctMin
-    shortBias = strongTrend and diMinus[1] > diPlus[1] and emaDown and bearDay and bodyPct >= d1BodyPctMin and atrPct >= d1AtrPctMin
-    [longBias ? 1.0 : 0.0, shortBias ? 1.0 : 0.0, low[1], high[1]]
+    [diPlus[1], diMinus[1], adxVal[1], emaUp ? 1.0 : 0.0, emaDown ? 1.0 : 0.0, bullDay ? 1.0 : 0.0, bearDay ? 1.0 : 0.0, bodyPct, atrPct, close[1], ema21[1], low[1], high[1]]
 
-[d1LongBias, d1ShortBias, d1PriorLow, d1PriorHigh] = request.security(
-     syminfo.tickerid, "D", f_d1Regime(), barmerge.gaps_off, barmerge.lookahead_off)
+[d1DiPlus, d1DiMinus, d1Adx, d1EmaUp, d1EmaDown, d1Bull, d1Bear, d1BodyPct, d1AtrPct, d1Close, d1Ema, d1PriorLow, d1PriorHigh] = request.security(
+     syminfo.tickerid, "D", f_d1Raw(), barmerge.gaps_off, barmerge.lookahead_off)
 
-f_m15Trigger() =>
+longBiasStrict = d1Adx > 25 and d1DiPlus > d1DiMinus and d1EmaUp == 1 and d1Bull == 1 and d1BodyPct >= 0.55 and d1AtrPct >= 50
+shortBiasStrict = d1Adx > 25 and d1DiMinus > d1DiPlus and d1EmaDown == 1 and d1Bear == 1 and d1BodyPct >= 0.55 and d1AtrPct >= 50
+longBiasBalanced = d1DiPlus > d1DiMinus and d1EmaUp == 1
+shortBiasBalanced = d1DiMinus > d1DiPlus and d1EmaDown == 1
+longBiasRelaxed = d1Close > d1Ema
+shortBiasRelaxed = d1Close < d1Ema
+
+d1LongBias = isStrict ? longBiasStrict : isBalanced ? longBiasBalanced : longBiasRelaxed
+d1ShortBias = isStrict ? shortBiasStrict : isBalanced ? shortBiasBalanced : shortBiasRelaxed
+
+f_h1Raw() =>
+    ema21 = ta.ema(close, emaLength)
+    atr14 = ta.atr(atrLength)
+    touchLong = low <= ema21 + emaTouchAtr * atr14
+    touchShort = high >= ema21 - emaTouchAtr * atr14
+    rejectLong = close > ema21
+    rejectShort = close < ema21
+    above = close > ema21
+    below = close < ema21
+    [above ? 1.0 : 0.0, below ? 1.0 : 0.0, touchLong ? 1.0 : 0.0, touchShort ? 1.0 : 0.0, rejectLong ? 1.0 : 0.0, rejectShort ? 1.0 : 0.0, atr14, ema21]
+
+[h1Above, h1Below, h1TouchLong, h1TouchShort, h1RejectLong, h1RejectShort, h1Atr, h1Ema] = request.security(
+     syminfo.tickerid, "60", f_h1Raw(), barmerge.gaps_off, barmerge.lookahead_off)
+
+f_m15Raw() =>
     ema21 = ta.ema(close, 21)
     rsi = ta.rsi(close, 14)
     touchLong = low <= ema21
-    rejectLong = close > ema21 and close > open
+    rejectLong = close > ema21
     touchShort = high >= ema21
-    rejectShort = close < ema21 and close < open
+    rejectShort = close < ema21
     [touchLong and rejectLong ? 1.0 : 0.0, touchShort and rejectShort ? 1.0 : 0.0, rsi]
 
 [m15LongTrig, m15ShortTrig, m15Rsi] = request.security(
-     syminfo.tickerid, "15", f_m15Trigger(), barmerge.gaps_off, barmerge.lookahead_off)
+     syminfo.tickerid, "15", f_m15Raw(), barmerge.gaps_off, barmerge.lookahead_off)
 
-h1Ema = ta.ema(close, emaLength)
-h1Atr = ta.atr(atrLength)
 inSession = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
 sessionEnded = not inSession and inSession[1]
 newSession = inSession and not inSession[1]
@@ -91,18 +116,16 @@ var bool tradedThisSession = false
 if newSession
     tradedThisSession := false
 
-h1AboveEma = close > h1Ema
-h1BelowEma = close < h1Ema
-h1TouchLong = low <= h1Ema + emaTouchAtr * h1Atr
-h1TouchShort = high >= h1Ema - emaTouchAtr * h1Atr
-h1RejectLong = close > h1Ema
-h1RejectShort = close < h1Ema
-rsiLongOk = m15Rsi >= rsiLongMin and m15Rsi <= rsiLongMax
-rsiShortOk = m15Rsi >= (100 - rsiLongMax) and m15Rsi <= (100 - rsiLongMin)
+rsiLongMin = isStrict ? 35 : isBalanced ? 30 : 25
+rsiLongMax = isStrict ? 55 : isBalanced ? 65 : 75
+rsiLongOk = not requireRsiConfirm or (m15Rsi >= rsiLongMin and m15Rsi <= rsiLongMax)
+rsiShortOk = not requireRsiConfirm or (m15Rsi >= (100 - rsiLongMax) and m15Rsi <= (100 - rsiLongMin))
+m15LongOk = not requireM15Confirm or m15LongTrig == 1
+m15ShortOk = not requireM15Confirm or m15ShortTrig == 1
 canEnter = not oneTradePerSession or not tradedThisSession
 
-longReady = inSession and canEnter and d1LongBias == 1 and h1AboveEma and h1TouchLong and h1RejectLong and m15LongTrig == 1 and rsiLongOk
-shortReady = inSession and canEnter and d1ShortBias == 1 and h1BelowEma and h1TouchShort and h1RejectShort and m15ShortTrig == 1 and rsiShortOk
+longReady = inSession and canEnter and d1LongBias and h1Above == 1 and h1TouchLong == 1 and h1RejectLong == 1 and m15LongOk and rsiLongOk
+shortReady = inSession and canEnter and d1ShortBias and h1Below == 1 and h1TouchShort == 1 and h1RejectShort == 1 and m15ShortOk and rsiShortOk
 
 clampStop(isLong, entry, rawStop) =>
     minDist = minStopPips * pipSize
@@ -154,8 +177,7 @@ calcQty(entryPrice, stopPrice) =>
     else
         riskCash = strategy.equity * riskPct / 100.0
         pointValue = nz(syminfo.pointvalue, 1.0)
-        qty = riskCash / (riskPerUnit * pointValue)
-        math.max(qty, 1.0)
+        math.max(riskCash / (riskPerUnit * pointValue), 1.0)
 
 timeStopMs = timeStopHours * 60 * 60 * 1000
 

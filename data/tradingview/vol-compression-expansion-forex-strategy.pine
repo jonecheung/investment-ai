@@ -1,6 +1,6 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
-// Template T3_EXPANSION | Chart: M15 | Pairs: EURUSD, USDJPY, EURJPY | Session: 07:15-14:00 UTC
+// Template T3_EXPANSION | Chart: M15 | One strategy per chart!
 strategy(
      "T3 Vol Compression Expansion Forex Strategy",
      overlay=true,
@@ -14,12 +14,18 @@ strategy(
      calc_on_order_fills=true,
      process_orders_on_close=true)
 
-// Scenario 4 — Volatility-Compression Expansion (Parallel Tier 2).
-// Chart: M15. D1 squeeze + London breakout with volume confirmation.
+// v2 — Filter Preset. Default Balanced: squeeze OR low-vol (not both), no volume filter.
+
+presetGroup = "Filter Preset"
+filterPreset = input.string(
+     "Balanced",
+     "Filter Preset",
+     options=["Strict (Playbook)", "Balanced", "Relaxed"],
+     group=presetGroup)
 
 sessionGroup = "Sessions"
 asianSession = input.session("0000-0700", "Asian Range Session UTC", group=sessionGroup)
-entrySession = input.session("0715-1400", "Entry Session UTC", group=sessionGroup)
+entrySession = input.session("0700-1400", "Entry Session UTC", group=sessionGroup)
 sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
 closeAtSessionEnd = input.bool(true, "Close At Session End", group=sessionGroup)
 blockNewEntries = input.bool(false, "Block All Entries (Holiday/Event)", group=sessionGroup)
@@ -27,18 +33,20 @@ blockNewEntries = input.bool(false, "Block All Entries (Holiday/Event)", group=s
 squeezeGroup = "D1 Compression"
 bbMult = input.float(2.0, "BB StdDev", minval=0.5, step=0.1, group=squeezeGroup)
 keltnerMult = input.float(1.5, "Keltner ATR Mult", minval=0.5, step=0.1, group=squeezeGroup)
-squeezeBarsMin = input.int(2, "Min Consecutive Squeeze Bars (D1)", minval=1, group=squeezeGroup)
+squeezeBarsMin = input.int(1, "Min Consecutive Squeeze Bars (D1)", minval=1, group=squeezeGroup)
+requireD1Regime = input.bool(true, "Require D1 Squeeze Or Low-Vol", group=squeezeGroup)
 
 tradeGroup = "Trade Rules"
 atrLength = input.int(14, "ATR Length", minval=1, group=tradeGroup)
 atrStopMult = input.float(1.5, "ATR Stop Multiplier", minval=0.5, step=0.1, group=tradeGroup)
 rrRatio = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=tradeGroup)
+useVolumeFilter = input.bool(false, "Require Volume Spike", group=tradeGroup)
 volumeMult = input.float(1.3, "Volume Confirmation Mult", minval=1.0, step=0.05, group=tradeGroup)
-bodyPctMin = input.float(0.70, "Breakout Body % Min", minval=0.5, maxval=1.0, step=0.05, group=tradeGroup)
+bodyPctMin = input.float(0.55, "Breakout Body % Min", minval=0.3, maxval=1.0, step=0.05, group=tradeGroup)
 partialPct = input.float(50.0, "Partial Close % At 1R", minval=0.0, maxval=100.0, step=5.0, group=tradeGroup)
 timeStopMinutes = input.int(60, "Time Stop (minutes)", minval=15, maxval=240, group=tradeGroup)
 maxStopPips = input.float(30.0, "Max Stop (pips)", minval=5.0, step=1.0, group=tradeGroup)
-oneTradePerDay = input.bool(true, "One Trade Per Day", group=tradeGroup)
+oneTradePerDay = input.bool(false, "One Trade Per Day", group=tradeGroup)
 entryOnNextBar = input.bool(true, "Enter On Next Bar Open", group=tradeGroup)
 
 riskGroup = "Position Sizing"
@@ -47,18 +55,16 @@ riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=5.0, step=0.
 fixedQty = input.float(1000.0, "Fixed Quantity", minval=1.0, step=100.0, group=riskGroup)
 
 pipSize = str.contains(syminfo.ticker, "JPY") ? 0.01 : 0.0001
+isStrict = filterPreset == "Strict (Playbook)"
+isRelaxed = filterPreset == "Relaxed"
 
 f_d1Squeeze() =>
     basis = ta.sma(close, 20)
     dev = bbMult * ta.stdev(close, 20)
-    bbUpper = basis + dev
-    bbLower = basis - dev
-    bbWidth = bbUpper - bbLower
+    bbWidth = (basis + dev) - (basis - dev)
     kMid = ta.ema(close, 20)
     kRange = keltnerMult * ta.atr(14)
-    kUpper = kMid + kRange
-    kLower = kMid - kRange
-    kWidth = kUpper - kLower
+    kWidth = (kMid + kRange) - (kMid - kRange)
     squeeze = bbWidth < kWidth
     atr14 = ta.atr(14)
     atrPct = ta.percentrank(atr14, 100)[1]
@@ -66,11 +72,13 @@ f_d1Squeeze() =>
     avgRange = ta.sma(high - low, 20)[1]
     lowVolDay = atrPct <= 30 and priorRange < avgRange * 0.7
     squeezeCount = ta.barssince(not squeeze)
-    squeezeActive = squeeze and squeeze[1] and squeezeCount >= squeezeBarsMin - 1
+    squeezeActive = squeeze and (not isStrict or squeeze[1]) and squeezeCount >= squeezeBarsMin - 1
     [squeezeActive ? 1.0 : 0.0, lowVolDay ? 1.0 : 0.0]
 
 [d1SqueezeOk, d1LowVolOk] = request.security(
      syminfo.tickerid, "D", f_d1Squeeze(), barmerge.gaps_off, barmerge.lookahead_off)
+
+d1RegimeOk = not requireD1Regime or (isStrict ? (d1SqueezeOk == 1 and d1LowVolOk == 1) : isRelaxed ? true : (d1SqueezeOk == 1 or d1LowVolOk == 1))
 
 inAsian = not na(time(timeframe.period, asianSession, sessionTimezone))
 inEntry = not blockNewEntries and not na(time(timeframe.period, entrySession, sessionTimezone))
@@ -108,11 +116,12 @@ volAvg = ta.sma(volume, 20)
 body = math.abs(close - open)
 barRange = high - low
 bodyPct = barRange > 0 ? body / barRange : 0.0
-volOk = volume > volumeMult * volAvg
+volOk = not useVolumeFilter or volume > volumeMult * volAvg
+bodyMin = isStrict ? 0.70 : isRelaxed ? 0.45 : bodyPctMin
 canEnter = not oneTradePerDay or not tradedToday
 
-longBreak = inEntry and canEnter and rangeReady and d1SqueezeOk == 1 and d1LowVolOk == 1 and close > lockedAsianHigh and close[1] <= lockedAsianHigh and bodyPct >= bodyPctMin and volOk
-shortBreak = inEntry and canEnter and rangeReady and d1SqueezeOk == 1 and d1LowVolOk == 1 and close < lockedAsianLow and close[1] >= lockedAsianLow and bodyPct >= bodyPctMin and volOk
+longBreak = inEntry and canEnter and rangeReady and d1RegimeOk and close > lockedAsianHigh and close[1] <= lockedAsianHigh and bodyPct >= bodyMin and volOk
+shortBreak = inEntry and canEnter and rangeReady and d1RegimeOk and close < lockedAsianLow and close[1] >= lockedAsianLow and bodyPct >= bodyMin and volOk
 
 clampStopLong(entry) =>
     atrStop = entry - atrStopMult * atr
