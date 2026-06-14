@@ -7,14 +7,14 @@ strategy(
      default_qty_type=strategy.fixed,
      default_qty_value=1,
      commission_type=strategy.commission.cash_per_order,
-     commission_value=0.0,
-     slippage=1,
+     commission_value=5.0,
+     slippage=2,
      calc_on_order_fills=true,
      process_orders_on_close=true)
 
 // Backtestable ORB for FX majors on 15m/30m charts.
-// Same rules as opening-range-breakout-forex.pine (indicator/screener):
-// lock session OR, enter on close breakout, stop at breakout-bar extreme, fixed RR target.
+// v2: next-bar entry, configurable stop anchor, London session default, spread cost,
+// FX-aware sizing, min OR width + optional EMA trend filter.
 
 presetGroup = "Strategy Preset"
 strategyPreset = input.string(
@@ -25,13 +25,15 @@ strategyPreset = input.string(
 usePresetParams = input.bool(true, "Use Preset OR Minutes / RR / Direction", group=presetGroup)
 
 sessionGroup = "Session"
-tradingSession = input.session("0700-1600", "Trading Session", group=sessionGroup)
+tradingSession = input.session("0800-1200", "Trading Session", group=sessionGroup)
 sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
-closeAtSessionEnd = input.bool(true, "Close Open Position At Session End", group=sessionGroup)
+closeAtSessionEnd = input.bool(false, "Close Open Position At Session End", group=sessionGroup)
 
 orGroup = "Opening Range"
 orMinutesInput = input.int(30, "Opening Range Minutes", minval=5, maxval=120, group=orGroup)
 orMinutes = usePresetParams ? (strategyPreset == "30min Long (1:1 RR)" ? 30 : 15) : orMinutesInput
+atrLength = input.int(14, "ATR Length (filters)", minval=1, group=orGroup)
+minOrAtrMultiple = input.float(0.25, "Min OR Width (ATR multiple)", minval=0.0, step=0.05, group=orGroup)
 
 tradeGroup = "Trade Rules"
 tradeModeInput = input.string("Long Only", "Trade Mode", options=["Long Only", "Long and Short"], group=tradeGroup)
@@ -42,11 +44,24 @@ rewardRiskInput = input.float(1.0, "Reward Risk Target", minval=0.1, step=0.05, 
 rewardRiskTarget = usePresetParams ? (strategyPreset == "30min Long (1:1 RR)" ? 1.0 : 2.05) : rewardRiskInput
 requireCloseBreakout = input.bool(true, "Require Close Beyond OR (not wick only)", group=tradeGroup)
 oneTradePerSession = input.bool(true, "One Trade Per Session", group=tradeGroup)
+stopMode = input.string(
+     "OR Opposite Side",
+     "Stop Anchor",
+     options=["OR Opposite Side", "Breakout Bar Extreme"],
+     group=tradeGroup)
+entryOnNextBar = input.bool(true, "Enter On Next Bar Open (reduces look-ahead)", group=tradeGroup)
+
+filterGroup = "Quality Filters"
+useTrendFilter = input.bool(true, "Use EMA Trend Filter", group=filterGroup)
+trendEmaLength = input.int(200, "Trend EMA Length", minval=1, group=filterGroup)
 
 riskGroup = "Position Sizing"
 useRiskSizing = input.bool(true, "Size By Risk % Of Equity", group=riskGroup)
 riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=5.0, step=0.1, group=riskGroup)
-fixedQty = input.float(1.0, "Fixed Quantity (when risk sizing off)", minval=0.0001, step=0.0001, group=riskGroup)
+fixedQty = input.float(1000.0, "Fixed Quantity (when risk sizing off)", minval=1.0, step=100.0, group=riskGroup)
+
+atr = ta.atr(atrLength)
+trendEma = ta.ema(close, trendEmaLength)
 
 inSession = not na(time(timeframe.period, tradingSession, sessionTimezone))
 newSession = inSession and not inSession[1]
@@ -59,6 +74,10 @@ var bool orBuilding = false
 var float lockedOrHigh = na
 var float lockedOrLow = na
 var bool tradedThisSession = false
+var bool pendingLong = false
+var bool pendingShort = false
+var float pendingLongStop = na
+var float pendingShortStop = na
 
 if newSession
     orStartMs := time
@@ -81,53 +100,96 @@ else if not inSession
     orLow := na
     lockedOrHigh := na
     lockedOrLow := na
+    pendingLong := false
+    pendingShort := false
 
 orReady = inSession and not orBuilding and not na(lockedOrHigh) and not na(lockedOrLow)
+orWidth = lockedOrHigh - lockedOrLow
+orWidthOk = minOrAtrMultiple <= 0 or orWidth >= atr * minOrAtrMultiple
 
-longBreakRaw = orReady and close > lockedOrHigh and (not requireCloseBreakout or close[1] <= lockedOrHigh)
-shortBreakRaw = orReady and close < lockedOrLow and (not requireCloseBreakout or close[1] >= lockedOrLow)
+longBreakRaw = orReady and orWidthOk and close > lockedOrHigh and (not requireCloseBreakout or close[1] <= lockedOrHigh)
+shortBreakRaw = orReady and orWidthOk and close < lockedOrLow and (not requireCloseBreakout or close[1] >= lockedOrLow)
+longTrendOk = not useTrendFilter or close > trendEma
+shortTrendOk = not useTrendFilter or close < trendEma
+
 canEnter = not oneTradePerSession or not tradedThisSession
-longBreak = allowLong and longBreakRaw and canEnter and strategy.position_size == 0
-shortBreak = allowShort and shortBreakRaw and canEnter and strategy.position_size == 0
+longSignal = allowLong and longBreakRaw and longTrendOk and canEnter
+shortSignal = allowShort and shortBreakRaw and shortTrendOk and canEnter
 
-longRiskOnBreak = longBreak ? close - low : na
-shortRiskOnBreak = shortBreak ? high - close : na
-longBreakValid = longBreak and longRiskOnBreak > 0
-shortBreakValid = shortBreak and shortRiskOnBreak > 0
+longStopOnSignal = stopMode == "OR Opposite Side" ? lockedOrLow : low
+shortStopOnSignal = stopMode == "OR Opposite Side" ? lockedOrHigh : high
+
+if strategy.position_size == 0
+    if entryOnNextBar
+        if longSignal
+            pendingLong := true
+            pendingLongStop := longStopOnSignal
+            pendingShort := false
+        else if shortSignal
+            pendingShort := true
+            pendingShortStop := shortStopOnSignal
+            pendingLong := false
+    else if longSignal
+        pendingLong := true
+        pendingLongStop := longStopOnSignal
+        pendingShort := false
+    else if shortSignal
+        pendingShort := true
+        pendingShortStop := shortStopOnSignal
+        pendingLong := false
+
+longEntryNow = inSession and strategy.position_size == 0 and (entryOnNextBar ? (pendingLong[1] and canEnter) : pendingLong)
+shortEntryNow = inSession and strategy.position_size == 0 and (entryOnNextBar ? (pendingShort[1] and canEnter) : pendingShort)
 
 calcQty(entryPrice, stopPrice) =>
     riskPerUnit = math.abs(entryPrice - stopPrice)
     if not useRiskSizing
         fixedQty
-    else if riskPerUnit <= 0
+    else if riskPerUnit <= syminfo.mintick
         fixedQty
     else
         riskCash = strategy.equity * riskPct / 100.0
-        math.max(riskCash / riskPerUnit, syminfo.mintick)
+        pointValue = nz(syminfo.pointvalue, 1.0)
+        qty = riskCash / (riskPerUnit * pointValue)
+        math.max(qty, 1.0)
 
-if longBreakValid
-    entry = close
-    stop = low
-    target = entry + rewardRiskTarget * (entry - stop)
-    qty = calcQty(entry, stop)
-    strategy.entry("ORB Long", strategy.long, qty=qty)
-    strategy.exit("ORB Long Exit", "ORB Long", stop=stop, limit=target)
-    tradedThisSession := true
+if longEntryNow
+    entry = entryOnNextBar ? open : close
+    stop = entryOnNextBar ? pendingLongStop[1] : pendingLongStop
+    risk = entry - stop
+    if risk > syminfo.mintick
+        target = entry + rewardRiskTarget * risk
+        qty = calcQty(entry, stop)
+        strategy.entry("ORB Long", strategy.long, qty=qty)
+        strategy.exit("ORB Long Exit", "ORB Long", stop=stop, limit=target)
+        tradedThisSession := true
+    pendingLong := false
 
-if shortBreakValid
-    entry = close
-    stop = high
-    target = entry - rewardRiskTarget * (stop - entry)
-    qty = calcQty(entry, stop)
-    strategy.entry("ORB Short", strategy.short, qty=qty)
-    strategy.exit("ORB Short Exit", "ORB Short", stop=stop, limit=target)
-    tradedThisSession := true
+if shortEntryNow
+    entry = entryOnNextBar ? open : close
+    stop = entryOnNextBar ? pendingShortStop[1] : pendingShortStop
+    risk = stop - entry
+    if risk > syminfo.mintick
+        target = entry - rewardRiskTarget * risk
+        qty = calcQty(entry, stop)
+        strategy.entry("ORB Short", strategy.short, qty=qty)
+        strategy.exit("ORB Short Exit", "ORB Short", stop=stop, limit=target)
+        tradedThisSession := true
+    pendingShort := false
+
+if longSignal and not entryOnNextBar
+    pendingLong := false
+if shortSignal and not entryOnNextBar
+    pendingShort := false
 
 if closeAtSessionEnd and sessionEnded and strategy.position_size != 0
     strategy.close_all("Session End")
+    pendingLong := false
+    pendingShort := false
 
 plot(orReady ? lockedOrHigh : na, "OR High", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
 plot(orReady ? lockedOrLow : na, "OR Low", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
-plotshape(longBreakValid, "Long Entry", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="L")
-plotshape(shortBreakValid, "Short Entry", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="S")
+plot(useTrendFilter ? trendEma : na, "Trend EMA", color=color.new(color.blue, 30))
+plotshape(longEntryNow, "Long Entry", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="L")
+plotshape(shortEntryNow, "Short Entry", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="S")
 bgcolor(inSession ? color.new(color.teal, 92) : na, title="In Session")
