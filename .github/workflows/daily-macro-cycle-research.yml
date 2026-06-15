@@ -34,9 +34,16 @@ jobs:
 
       - name: Install Parallel CLI
         run: |
+          set -euo pipefail
           mkdir -p "$HOME/.local/bin" "$HOME/.local/share"
-          curl -fsSL https://parallel.ai/install.sh | bash
+          if ! curl -fsSL https://parallel.ai/install.sh | bash; then
+            echo "::warning::Parallel install script failed; falling back to pipx"
+            python3 -m pip install --user --upgrade pipx
+            python3 -m pipx ensurepath
+            python3 -m pipx install "parallel-web-tools[cli]"
+          fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/parallel-cli" --version
 
       - name: Start scheduled macro-cycle research
         run: bash .agents/skills/run-daily-macro-cycle-research/scripts/run.sh
