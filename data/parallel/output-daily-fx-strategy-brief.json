@@ -56,7 +56,7 @@
         "properties": {
           "pair": {
             "type": "string",
-            "description": "FX pair symbol, e.g. EURUSD."
+            "description": "Market symbol, e.g. XAUUSD, EURUSD, or USDJPY."
           },
           "scenario_id": {
             "type": "integer",
@@ -69,9 +69,9 @@
             "type": "string",
             "enum": [
               "T0_NO_TRADE",
-              "T1_PULLBACK",
-              "T2_FALSE_BREAKOUT",
-              "T3_EXPANSION",
+              "T1_VWAP",
+              "T2_SWEEP",
+              "T3_COMPRESS",
               "T4_SWING_BACKUP"
             ]
           },
@@ -107,6 +107,7 @@
           "rationale": { "type": "string" },
           "london_open_checklist": {
             "type": "array",
+            "description": "London / NY execution checklist for this market.",
             "items": { "type": "string" }
           },
           "do_not_trade_if": {
@@ -135,14 +136,23 @@
     },
     "priority_execution_queue": {
       "type": "array",
-      "description": "Ordered list of top setups for the day (max 3 suggested).",
+      "description": "Ordered list of top setups for the day (max 1 primary plus max 2 watchlist setups suggested).",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "rank": { "type": "integer", "minimum": 1 },
           "pair": { "type": "string" },
-          "template_id": { "type": "string" },
+          "template_id": {
+            "type": "string",
+            "enum": [
+              "T0_NO_TRADE",
+              "T1_VWAP",
+              "T2_SWEEP",
+              "T3_COMPRESS",
+              "T4_SWING_BACKUP"
+            ]
+          },
           "reason": { "type": "string" }
         },
         "required": ["rank", "pair", "template_id", "reason"]

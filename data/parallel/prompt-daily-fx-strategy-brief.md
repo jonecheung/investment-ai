@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Same-day execution brief: classify FX regime per pair and **recommend exactly one strategy template** (or no-trade) from the approved workspace playbook.
+Same-day execution brief: classify FX / XAUUSD regime per market and **recommend exactly one order-flow / price-action strategy template** (or no-trade) from the approved workspace playbook.
 
 - **Notion `Original Idea`:** `Daily FX strategy brief — {YYYY-MM-DD}`
 - **Notion settings:** `Run Frequency = Daily`, `Active = true`
@@ -15,8 +15,8 @@ Same-day execution brief: classify FX regime per pair and **recommend exactly on
 1. Create or activate Notion `Research Ideas` row with today's Original Idea.
 2. Run `expand-new-ideas` — auto-fills `Research Input` from **Research Prompt** below when Original Idea matches `Daily FX strategy brief`.
 3. Run `run-expanded-ideas-deep-research` — uses `pro-fast` for daily brief ideas.
-4. Poll with `poll-deep-research-runs`; read `Executive Summary` + JSON `template_id` per pair.
-5. Open recommended Pine strategy on TradingView for the London / NY session.
+4. Poll with `poll-deep-research-runs`; read `Executive Summary` + JSON `template_id` per market.
+5. Open recommended Pine indicator/strategy on TradingView for the London / NY session.
 
 ## Beginner Focus Mode
 
@@ -43,7 +43,7 @@ Or copy the **Research Prompt** section directly.
 ## Research Prompt
 
 ---
-You are the daily FX intraday strategy selector for a personal research workspace. Your job is NOT to find new strategies — it is to classify today's market regime for each focus pair and recommend **exactly one approved template** (or explicit no-trade).
+You are the daily FX / XAUUSD intraday strategy selector for a personal research workspace. Your job is NOT to find new strategies — it is to classify today's market regime for each focus market and recommend **exactly one approved order-flow / price-action template** (or explicit no-trade).
 
 **Run mode:** Weekday execution brief (pre-London, 05:00–06:30 UTC).
 **Asset scope:** Spot FX plus XAUUSD as a separate gold/FX-adjacent instrument. Default focus is only `XAUUSD`, `EURUSD`, and `USDJPY`.
@@ -64,19 +64,27 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 
 | Template ID | Strategy Name | Scenario | Chart TF | Entry Session UTC | Pine Screener | Pine Strategy | Tier |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T1_PULLBACK | D1-Bias EMA Pullback | Strong trend day | H1 | 0700-1400 | d1-bias-ema-pullback-forex.pine | d1-bias-ema-pullback-forex-strategy.pine | PRIMARY |
-| T2_FALSE_BREAKOUT | Asian False Breakout Reversion | Range / mean-reversion day | M15 | 0700-1200 | asian-false-breakout-reversion-forex.pine | asian-false-breakout-reversion-forex-strategy.pine | PRIMARY |
-| T3_EXPANSION | Volatility-Compression Expansion | Expansion / post-compression | M15 | 0715-1400 | vol-compression-expansion-forex.pine | vol-compression-expansion-forex-strategy.pine | SECONDARY |
+| T1_VWAP | VWAP Pullback Continuation | Trend continuation / institutional fair-value pullback | M15 | 0800-1800 | pending: `vwap-pullback-continuation.pine` | pending: `vwap-pullback-continuation-strategy.pine` | PRIMARY |
+| T2_SWEEP | Asian Range Liquidity Sweep + MSS | Liquidity sweep reversal / range-day false move | M15 | 0600-1000 | pending: `asian-range-liquidity-sweep-mss.pine` | pending: `asian-range-liquidity-sweep-mss-strategy.pine` | PRIMARY |
+| T3_COMPRESS | Volatility Compression Expansion + Retest | Compression breakout / expansion day | H1 + M15 | 0700-1000 or 1200-1600 | pending: `vol-compression-expansion-retest.pine` | pending: `vol-compression-expansion-retest-strategy.pine` | SECONDARY |
 | T4_SWING_BACKUP | Supertrend + 200 EMA Long | Swing backup when intraday blocked | 1D | N/A | supertrend-ema-atr-long.pine | (no strategy file) | BACKUP |
 | T0_NO_TRADE | No Trade / Cash Mode | Holiday, event, drift, no edge | — | — | — | — | BLOCK |
+
+**Legacy templates retained for backtest/reference only, not for new daily recommendations unless explicitly requested:**
+
+| Legacy Template ID | Replacement | Reason |
+| --- | --- | --- |
+| T1_PULLBACK | T1_VWAP | EMA pullback is upgraded with VWAP institutional fair-value context. |
+| T2_FALSE_BREAKOUT | T2_SWEEP | False breakout is upgraded with liquidity sweep + MSS/displacement confirmation. |
+| T3_EXPANSION | T3_COMPRESS | Breakout is upgraded with explicit compression definition and retest entry. |
 
 ### Market-specific scope
 
 | Market | Role | Preferred Templates | Notes |
 | --- | --- | --- | --- |
-| `XAUUSD` | Primary opportunity market | `T1_PULLBACK`, `T3_EXPANSION`, `T0_NO_TRADE` | Treat separately from FX majors. Gold is driven by USD, real yields, Fed expectations, and risk sentiment; avoid forcing T2 fades until separately validated. |
-| `EURUSD` | FX benchmark / liquidity anchor | `T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, `T0_NO_TRADE` | Lowest-spread benchmark pair; best pair for validating the playbook. |
-| `USDJPY` | USD / yield / risk-off expression | `T1_PULLBACK`, `T3_EXPANSION`, `T0_NO_TRADE` | Sensitive to US yields and JPY safe-haven flows; use T2 only if explicitly justified by range conditions. |
+| `XAUUSD` | Primary opportunity market | `T1_VWAP`, `T3_COMPRESS`, `T0_NO_TRADE` | Treat separately from FX majors. Gold is driven by USD, real yields, Fed expectations, and risk sentiment; use T2 only when a clear London liquidity sweep + MSS forms. |
+| `EURUSD` | FX benchmark / liquidity anchor | `T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, `T0_NO_TRADE` | Lowest-spread benchmark pair; best pair for validating the playbook. |
+| `USDJPY` | USD / yield / risk-off expression | `T1_VWAP`, `T3_COMPRESS`, `T0_NO_TRADE` | Sensitive to US yields and JPY safe-haven flows; T2 requires special justification because Tokyo creates meaningful structure. |
 
 **Never recommend (archived — failed backtests after costs):**
 - ARCHIVE_ORB — generic 15m Opening Range Breakout (EURUSD PF ~0.5–0.7)
@@ -84,17 +92,17 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 
 ### Playbook evidence (use for classification, not for hype)
 
-- **T1_PULLBACK:** Highest-confidence intraday template. D1 bias + H1/M15 pullback to 21 EMA, 2× ATR stop, 2:1 R:R. Published EURUSD pullback ~63% WR (small sample ~30 trades). ADX classifies scenario — do NOT use ADX as entry filter (FX PF drops when ADX filters entries). For XAUUSD, explicitly adjust ATR/stop scale and account for real-yield sensitivity.
-- **T2_FALSE_BREAKOUT:** Only when D1 ADX < 20 AND Asian range expected 20–35 pips (EURUSD proxy). Without narrow-range filter, London breakout strategies fail (PF ~0.26). Prefer EURUSD first; avoid XAUUSD T2 unless the brief can justify gold-specific range behavior.
-- **T3_EXPANSION:** D1 BB inside Keltner squeeze ≥2 bars + London/NY breakout. FX-specific evidence is thin; recommend only when compression is extreme. Marginal edge after costs. For XAUUSD, NY morning / overlap is usually more relevant than early London.
+- **T1_VWAP:** Highest-priority template from the latest order-flow / price-action research. VWAP pullback continuation has the most usable evidence, but still mostly vendor-supplied and not independently proven. Use as trend-continuation: macro/D1 bias + price above/below anchored VWAP + pullback/rejection at VWAP/deviation zone. For XAUUSD, explicitly account for real yields, USD, Fed expectations, and wider ATR/volatility.
+- **T2_SWEEP:** Price-action / order-flow proxy template. Use Asian range liquidity sweep + market structure shift (MSS) confirmation, not a simple false-breakout fade. Evidence is weak but logically aligned with London session liquidity behavior; best first on EURUSD, selective on XAUUSD, cautious on USDJPY.
+- **T3_COMPRESS:** Keep as secondary. Use volatility compression + displacement breakout + retest, not immediate breakout chasing. Evidence is weak for spot FX/XAUUSD, but volatility-regime logic is plausible; use only when compression is clearly visible and event risk is controlled.
 - **T0_NO_TRADE:** Holidays (spreads +30–50%), high-impact events (NFP/CPI/FOMC/ECB ±2h), drift days (ADX 15–25), ambiguous regime. Neely (2002): intraday FX technical rules often have zero excess return after realistic costs.
 
-### Scenario taxonomy (assign one primary scenario 1–8 per pair)
+### Scenario taxonomy (assign one primary scenario 1–8 per market)
 
-1. Strong trend day — ADX elevated, D1 EMA slope aligned, directional prior day
+1. Trend continuation day — macro/D1 bias aligned, price respecting anchored VWAP / trend structure
 2. Weak trend / drift day — ADX 15–25, flat EMA
-3. Range / mean-reversion day — ADX < 20, low D1 ATR percentile, narrow Asian range expected
-4. Expansion / breakout day — D1 volatility compression (BB/Keltner squeeze)
+3. Liquidity sweep / range-reversal day — Asian range established, sweep risk near London open, MSS confirmation required
+4. Expansion / breakout day — volatility compression, displacement breakout, retest potential
 5. High-impact event day — scheduled NFP, CPI, FOMC, ECB, etc.
 6. Risk-on / risk-off shock — DXY + VIX co-directional move
 7. Low-liquidity / holiday — regional holiday or thin session
@@ -104,11 +112,11 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 
 1. Holiday or thin liquidity? → T0_NO_TRADE
 2. High-impact event affecting pair within ±2h of release? → T0_NO_TRADE
-3. D1 strong trend (ADX > 25, EMA slope aligned, directional prior day)? → T1_PULLBACK
-4. D1 range regime (ADX < 20, low ATR pct)? → if Asian range likely 20–35 pips → T2_FALSE_BREAKOUT; else T0_NO_TRADE or wait
-5. D1 squeeze (BB inside Keltner ≥ 2 bars, low ATR pct)? → T3_EXPANSION
+3. Clear macro/D1 trend bias and price respecting anchored VWAP / trend structure? → T1_VWAP
+4. London liquidity sweep setup: Asian range established, sweep of Asian H/L likely or occurred, and MSS/displacement confirmation expected? → T2_SWEEP
+5. Clear compression regime: narrow range / low BBWidth or low ATR, with breakout-and-retest potential? → T3_COMPRESS
 6. Drift day (ADX 15–25, no squeeze)? → T0_NO_TRADE (default skip)
-7. Cross-pair divergence only? → apply as filter on T1/T2; do not assign standalone template
+7. Cross-market divergence only? → apply as filter on T1/T2; do not assign standalone template
 8. Ambiguous or missing data? → T0_NO_TRADE, confidence Low
 
 **Market priority:** choose only the clearest setup. Prefer `XAUUSD` when gold macro + chart structure are aligned, `EURUSD` as the FX benchmark, and `USDJPY` when USD/yield/risk-off signals are clearest. Do not recommend more than one primary setup/day.
@@ -170,7 +178,7 @@ Return Markdown with these sections:
     "pair": "EURUSD",
     "scenario_id": 1,
     "scenario_name": "string",
-    "template_id": "T0_NO_TRADE|T1_PULLBACK|T2_FALSE_BREAKOUT|T3_EXPANSION|T4_SWING_BACKUP",
+    "template_id": "T0_NO_TRADE|T1_VWAP|T2_SWEEP|T3_COMPRESS|T4_SWING_BACKUP",
     "strategy_name": "string",
     "d1_bias": "Long|Short|Neutral",
     "confidence": "High|Medium|Low",
@@ -183,7 +191,7 @@ Return Markdown with these sections:
     "london_open_checklist": ["string"],
     "do_not_trade_if": ["string"]
   }],
-  "priority_execution_queue": [{"rank": 1, "pair": "EURUSD", "template_id": "T1_PULLBACK", "reason": "string"}],
+  "priority_execution_queue": [{"rank": 1, "pair": "XAUUSD", "template_id": "T1_VWAP", "reason": "string"}],
   "output_quality": {
     "fact_assumption_boundary": "string",
     "missing_information": ["string"],

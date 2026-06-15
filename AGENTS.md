@@ -61,7 +61,7 @@ For intraday template selection (which Pine strategy to use today):
 - **Research Input:** Auto-expanded by `expand-new-ideas` from `data/parallel/prompt-daily-fx-strategy-brief.md` (Research Prompt block)
 - **Run Frequency:** `Daily`, `Active = true`, weekday mornings ~05:00–06:30 UTC
 - **Processor:** `pro-fast` (via `run-expanded-ideas-deep-research` when Original Idea matches daily brief prefix)
-- **Output:** Executive Summary + JSON (`data/parallel/output-daily-fx-strategy-brief.json`) with per-pair `template_id` (`T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, `T0_NO_TRADE`) and Pine filenames
+- **Output:** Executive Summary + JSON (`data/parallel/output-daily-fx-strategy-brief.json`) with per-market `template_id` (`T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, `T0_NO_TRADE`) and Pine filenames
 - **Beginner Focus Mode:** focus only on `XAUUSD`, `EURUSD`, and `USDJPY`; prioritize London, London/NY overlap, and NY morning; recommend at most one primary setup/day plus at most two watchlist setups/day.
 - **XAUUSD handling:** treat gold separately from FX majors. Always state quote/tick convention, volatility scale, session liquidity, and macro drivers (USD, real yields, Fed expectations, risk sentiment).
 

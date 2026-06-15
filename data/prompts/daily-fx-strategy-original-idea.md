@@ -41,7 +41,7 @@ For daily brief ideas: kicks off Parallel with `--processor pro-fast` (not `ultr
 ## Expected output
 
 - Markdown sections including **Executive Summary** and **Priority Execution Queue**
-- JSON with per-pair `template_id`: `T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, or `T0_NO_TRADE`
+- JSON with per-market `template_id`: `T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, or `T0_NO_TRADE`
 - Pine filenames under `data/tradingview/`
 - XAUUSD treated separately from FX majors, including gold tick/pip convention, volatility scale, session liquidity, and macro drivers
 
