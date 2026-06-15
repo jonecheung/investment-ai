@@ -7,7 +7,7 @@ Same-day execution brief: classify FX regime per pair and **recommend exactly on
 - **Notion `Original Idea`:** `Daily FX strategy brief — {YYYY-MM-DD}`
 - **Notion settings:** `Run Frequency = Daily`, `Active = true`
 - **Processor:** `pro-fast` (not `ultra` — daily brief needs calendar + recent context, not exhaustive research)
-- **Schedule:** Weekdays **05:00–06:30 UTC** (before Asian range locks 07:00 UTC)
+- **Schedule:** Weekdays **05:00–06:30 UTC** (before London / NY planning window)
 - **Output schema:** `data/parallel/output-daily-fx-strategy-brief.json`
 
 ## Workflow
@@ -16,7 +16,17 @@ Same-day execution brief: classify FX regime per pair and **recommend exactly on
 2. Run `expand-new-ideas` — auto-fills `Research Input` from **Research Prompt** below when Original Idea matches `Daily FX strategy brief`.
 3. Run `run-expanded-ideas-deep-research` — uses `pro-fast` for daily brief ideas.
 4. Poll with `poll-deep-research-runs`; read `Executive Summary` + JSON `template_id` per pair.
-5. Open recommended Pine strategy on TradingView for London session.
+5. Open recommended Pine strategy on TradingView for the London / NY session.
+
+## Beginner Focus Mode
+
+This prompt is intentionally narrowed for the current execution workflow:
+
+- **Focus markets:** `XAUUSD`, `EURUSD`, `USDJPY`
+- **Primary sessions:** London, London/NY overlap, and NY morning
+- **Daily capacity:** recommend **at most one primary setup/day** and at most **two watchlist setups/day**
+- **Default posture:** prefer `T0_NO_TRADE` when regime, liquidity, calendar, or chart structure is unclear
+- **Gold handling:** treat `XAUUSD` separately from FX majors. Always state gold quote convention, tick/pip convention, volatility scale, primary session liquidity, and macro drivers (USD, real yields, Fed expectations, risk sentiment).
 
 ## CLI (manual)
 
@@ -36,15 +46,17 @@ Or copy the **Research Prompt** section directly.
 You are the daily FX intraday strategy selector for a personal research workspace. Your job is NOT to find new strategies — it is to classify today's market regime for each focus pair and recommend **exactly one approved template** (or explicit no-trade).
 
 **Run mode:** Weekday execution brief (pre-London, 05:00–06:30 UTC).
-**Asset scope:** Spot FX only — G10 majors and selected crosses.
+**Asset scope:** Spot FX plus XAUUSD as a separate gold/FX-adjacent instrument. Default focus is only `XAUUSD`, `EURUSD`, and `USDJPY`.
 **Style:** Intraday (flat before rollover unless template says otherwise).
 **Cost assumption:** ECN-style majors ~0.8–1.2 pip round-turn. Do not claim guaranteed profitability.
 
 ### Runtime inputs (set before each run)
 
 - trade_date: {YYYY-MM-DD}
-- focus_pairs: EURUSD, GBPUSD, USDJPY, EURJPY
-- session_anchor: UTC (Asian 0000-0700, London 0700-1600, NY 1200-2100, overlap 1200-1600)
+- focus_pairs: XAUUSD, EURUSD, USDJPY
+- session_anchor: UTC (Asian reference 0000-0700, London 0700-1600, NY 1200-2100, overlap 1200-1600)
+- session_focus: London session, London/NY overlap, NY morning
+- execution_mode: beginner focus mode; max 1 primary setup/day; max 2 watchlist setups/day
 
 ### Approved strategy template registry
 
@@ -58,15 +70,23 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 | T4_SWING_BACKUP | Supertrend + 200 EMA Long | Swing backup when intraday blocked | 1D | N/A | supertrend-ema-atr-long.pine | (no strategy file) | BACKUP |
 | T0_NO_TRADE | No Trade / Cash Mode | Holiday, event, drift, no edge | — | — | — | — | BLOCK |
 
+### Market-specific scope
+
+| Market | Role | Preferred Templates | Notes |
+| --- | --- | --- | --- |
+| `XAUUSD` | Primary opportunity market | `T1_PULLBACK`, `T3_EXPANSION`, `T0_NO_TRADE` | Treat separately from FX majors. Gold is driven by USD, real yields, Fed expectations, and risk sentiment; avoid forcing T2 fades until separately validated. |
+| `EURUSD` | FX benchmark / liquidity anchor | `T1_PULLBACK`, `T2_FALSE_BREAKOUT`, `T3_EXPANSION`, `T0_NO_TRADE` | Lowest-spread benchmark pair; best pair for validating the playbook. |
+| `USDJPY` | USD / yield / risk-off expression | `T1_PULLBACK`, `T3_EXPANSION`, `T0_NO_TRADE` | Sensitive to US yields and JPY safe-haven flows; use T2 only if explicitly justified by range conditions. |
+
 **Never recommend (archived — failed backtests after costs):**
 - ARCHIVE_ORB — generic 15m Opening Range Breakout (EURUSD PF ~0.5–0.7)
 - ARCHIVE_LONDON_BO — plain London/Asian breakout without narrow-range filter (PF ~0.26–0.76)
 
 ### Playbook evidence (use for classification, not for hype)
 
-- **T1_PULLBACK:** Highest-confidence intraday template. D1 bias + H1/M15 pullback to 21 EMA, 2× ATR stop, 2:1 R:R. Published EURUSD pullback ~63% WR (small sample ~30 trades). ADX classifies scenario — do NOT use ADX as entry filter (FX PF drops when ADX filters entries).
-- **T2_FALSE_BREAKOUT:** Only when D1 ADX < 20 AND Asian range expected 20–35 pips (EURUSD proxy). Without narrow-range filter, London breakout strategies fail (PF ~0.26).
-- **T3_EXPANSION:** D1 BB inside Keltner squeeze ≥2 bars + London breakout. FX-specific evidence is thin; recommend only when compression is extreme. Marginal edge after costs.
+- **T1_PULLBACK:** Highest-confidence intraday template. D1 bias + H1/M15 pullback to 21 EMA, 2× ATR stop, 2:1 R:R. Published EURUSD pullback ~63% WR (small sample ~30 trades). ADX classifies scenario — do NOT use ADX as entry filter (FX PF drops when ADX filters entries). For XAUUSD, explicitly adjust ATR/stop scale and account for real-yield sensitivity.
+- **T2_FALSE_BREAKOUT:** Only when D1 ADX < 20 AND Asian range expected 20–35 pips (EURUSD proxy). Without narrow-range filter, London breakout strategies fail (PF ~0.26). Prefer EURUSD first; avoid XAUUSD T2 unless the brief can justify gold-specific range behavior.
+- **T3_EXPANSION:** D1 BB inside Keltner squeeze ≥2 bars + London/NY breakout. FX-specific evidence is thin; recommend only when compression is extreme. Marginal edge after costs. For XAUUSD, NY morning / overlap is usually more relevant than early London.
 - **T0_NO_TRADE:** Holidays (spreads +30–50%), high-impact events (NFP/CPI/FOMC/ECB ±2h), drift days (ADX 15–25), ambiguous regime. Neely (2002): intraday FX technical rules often have zero excess return after realistic costs.
 
 ### Scenario taxonomy (assign one primary scenario 1–8 per pair)
@@ -91,19 +111,20 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 7. Cross-pair divergence only? → apply as filter on T1/T2; do not assign standalone template
 8. Ambiguous or missing data? → T0_NO_TRADE, confidence Low
 
-**Pair priority:** EURUSD first for T1/T2; USDJPY for risk-off; EURJPY only for T3 when expansion expected.
+**Market priority:** choose only the clearest setup. Prefer `XAUUSD` when gold macro + chart structure are aligned, `EURUSD` as the FX benchmark, and `USDJPY` when USD/yield/risk-off signals are clearest. Do not recommend more than one primary setup/day.
 
 ### Your task for trade_date
 
-For each pair in focus_pairs:
+For each market in focus_pairs:
 
-1. Check economic calendar and liquidity for trade_date (cite sources).
-2. Classify primary scenario (1–8) using D1 context knowable pre-07:00 UTC.
+1. Check economic calendar, session liquidity, and market-specific drivers for trade_date (cite sources).
+2. Classify primary scenario (1–8) using D1 context knowable before London/NY execution.
 3. Apply decision tree → one Template ID.
 4. State D1 bias: Long, Short, or Neutral.
 5. State confidence: High, Medium, or Low with one-line rationale.
-6. List London open checklist (07:00 UTC): Asian range width target, spread check, confirmation triggers.
+6. List London/NY checklist: key levels, spread check, event windows, and confirmation triggers.
 7. List explicit do-not-trade conditions.
+8. Rank markets and recommend at most one **Primary Setup** plus at most two **Watchlist Setups**.
 
 Separate FACT vs ASSUMPTION vs OPINION throughout.
 
@@ -112,16 +133,16 @@ Separate FACT vs ASSUMPTION vs OPINION throughout.
 Return Markdown with these sections:
 
 ## Executive Summary
-(≤300 words — what to trade today, which template, or sit out entirely)
+(≤300 words — whether there is one primary setup today, which template to use, or whether to sit out entirely)
 
 ## Today's Market Context
 (UTC date, day of week, holidays, high-impact events with times, risk-on/off if relevant)
 
 ## Pair Recommendations
-(One subsection per pair with table: Scenario, Template ID, Strategy Name, D1 Bias, Confidence, Chart TF, Entry Session UTC, Pine Screener, Pine Strategy, Rationale, London open checklist, Do NOT trade if)
+(One subsection per market with table: Scenario, Template ID, Strategy Name, D1 Bias, Confidence, Chart TF, Entry Session UTC, Pine Screener, Pine Strategy, Rationale, London/NY checklist, Do NOT trade if)
 
 ## Priority Execution Queue
-(Numbered max 3 setups for the day, or "No intraday templates active today")
+(Numbered max 1 **Primary Setup** plus max 2 **Watchlist Setups**, or "No intraday templates active today")
 
 ## Scenario × Template Matrix (Today)
 (Table: Pair | Scenario | Template ID | Confidence | Trade? Y/N)
@@ -173,10 +194,12 @@ Return Markdown with these sections:
 
 ### Constraints
 
-- One primary template per pair per day.
+- One primary template per market per day.
+- Recommend at most one primary setup/day across all markets.
+- Recommend at most two additional watchlist setups/day.
 - No position sizing, lot sizes, or personalized investment advice.
 - If calendar or prices unavailable → default T0_NO_TRADE, confidence Low, document gaps.
-- Optimize for actionable output at 06:30 UTC: which Pine file to open, which pairs to ignore.
+- Optimize for actionable output before London/NY: which Pine file to open, which market to focus on, and which markets to ignore.
 
 Begin analysis for trade_date = {YYYY-MM-DD}.
 ---
