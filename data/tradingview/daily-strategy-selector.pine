@@ -1,0 +1,220 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Purpose: technical selector for T1_VWAP / T2_SWEEP / T3_COMPRESS / T0_NO_TRADE.
+// Use after Parallel macro brief. This indicator does NOT replace macro/news checks and does NOT place trades.
+indicator("Daily Strategy Selector - T1/T2/T3/T0", overlay=true, max_lines_count=100, max_labels_count=100)
+
+sessionGroup = "Sessions"
+asianSession = input.session("0000-0700", "Asian Reference Session UTC", group=sessionGroup)
+londonSession = input.session("0700-1000", "London Sweep Window UTC", group=sessionGroup)
+nySession = input.session("1200-1600", "London/NY + NY Morning UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+manualNewsBlock = input.bool(false, "Manual News/Event Block (forces T0)", group=sessionGroup)
+
+trendGroup = "T1_VWAP Trend Continuation"
+emaFastLength = input.int(9, "Fast EMA", minval=1, group=trendGroup)
+emaSlowLength = input.int(20, "Slow EMA", minval=1, group=trendGroup)
+vwapSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, group=trendGroup)
+pullbackAtrZone = input.float(0.35, "Pullback Zone ATR Fraction", minval=0.05, step=0.05, group=trendGroup)
+
+sweepGroup = "T2_SWEEP Liquidity Sweep"
+rangeMinAtr = input.float(0.25, "Asian Range Min ATR", minval=0.0, step=0.05, group=sweepGroup)
+rangeMaxAtr = input.float(3.00, "Asian Range Max ATR", minval=0.1, step=0.10, group=sweepGroup)
+mssLookback = input.int(4, "MSS Swing Lookback", minval=2, maxval=20, group=sweepGroup)
+
+compressionGroup = "T3_COMPRESS Expansion"
+bbLength = input.int(20, "Bollinger Length", minval=2, group=compressionGroup)
+bbMult = input.float(2.0, "Bollinger StdDev", minval=0.5, step=0.1, group=compressionGroup)
+compressionLookback = input.int(80, "Compression Percentile Lookback", minval=20, group=compressionGroup)
+bbWidthRankMax = input.float(25.0, "BB Width Percentile Max", minval=1, maxval=100, step=1, group=compressionGroup)
+atrCompressionMax = input.float(0.85, "ATR / ATR Avg Max", minval=0.1, step=0.05, group=compressionGroup)
+breakoutLookback = input.int(24, "Compression Range Lookback", minval=5, group=compressionGroup)
+breakoutBodyMin = input.float(0.55, "Breakout Body % Min", minval=0.1, maxval=1.0, step=0.05, group=compressionGroup)
+
+filterGroup = "Common Filters"
+atrLength = input.int(14, "ATR Length", minval=1, group=filterGroup)
+volumeLength = input.int(20, "Volume Average Length", minval=1, group=filterGroup)
+volumeMultiplier = input.float(1.0, "Volume Confirmation Multiplier", minval=0.1, step=0.05, group=filterGroup)
+minScoreToTrade = input.int(4, "Minimum Score To Recommend T1/T2/T3", minval=1, maxval=5, group=filterGroup)
+
+displayGroup = "Display"
+showTable = input.bool(true, "Show Selector Table", group=displayGroup)
+showKeyLevels = input.bool(true, "Show VWAP / EMA / Asian Levels", group=displayGroup)
+tablePosition = input.string("Top Right", "Table Position", options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group=displayGroup)
+
+inAsian = not na(time(timeframe.period, asianSession, sessionTimezone))
+inLondon = not na(time(timeframe.period, londonSession, sessionTimezone))
+inNy = not na(time(timeframe.period, nySession, sessionTimezone))
+inTradeWindow = inLondon or inNy
+asianStart = inAsian and not inAsian[1]
+asianEnd = not inAsian and inAsian[1]
+
+atr = ta.atr(atrLength)
+emaFast = ta.ema(close, emaFastLength)
+emaSlow = ta.ema(close, emaSlowLength)
+vwapValue = ta.vwap(hlc3)
+volumeAverage = ta.sma(volume, volumeLength)
+volumeOk = volume >= volumeAverage * volumeMultiplier
+
+body = math.abs(close - open)
+barRange = high - low
+bodyPct = barRange > 0 ? body / barRange : 0.0
+
+// Asian reference range for T2/T3.
+var float asianHigh = na
+var float asianLow = na
+var float lockedAsianHigh = na
+var float lockedAsianLow = na
+var bool rangeReady = false
+var bool sweptAbove = false
+var bool sweptBelow = false
+
+if asianStart
+    asianHigh := high
+    asianLow := low
+    lockedAsianHigh := na
+    lockedAsianLow := na
+    rangeReady := false
+    sweptAbove := false
+    sweptBelow := false
+else if inAsian
+    asianHigh := na(asianHigh) ? high : math.max(asianHigh, high)
+    asianLow := na(asianLow) ? low : math.min(asianLow, low)
+
+if asianEnd
+    lockedAsianHigh := asianHigh
+    lockedAsianLow := asianLow
+    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow) and lockedAsianHigh > lockedAsianLow
+    sweptAbove := false
+    sweptBelow := false
+
+if inTradeWindow and rangeReady
+    if high > lockedAsianHigh
+        sweptAbove := true
+    if low < lockedAsianLow
+        sweptBelow := true
+
+asianRange = rangeReady ? lockedAsianHigh - lockedAsianLow : na
+asianMid = rangeReady ? (lockedAsianHigh + lockedAsianLow) / 2.0 : na
+rangeOk = rangeReady and asianRange >= atr * rangeMinAtr and asianRange <= atr * rangeMaxAtr
+
+// T1_VWAP: trend continuation score.
+vwapSlopeUp = not na(vwapValue[vwapSlopeBars]) and vwapValue > vwapValue[vwapSlopeBars]
+vwapSlopeDown = not na(vwapValue[vwapSlopeBars]) and vwapValue < vwapValue[vwapSlopeBars]
+nearVwap = math.abs(close - vwapValue) <= atr * pullbackAtrZone or low <= vwapValue and high >= vwapValue
+nearEmaZone = math.abs(close - emaSlow) <= atr * pullbackAtrZone or low <= emaSlow and high >= emaSlow
+pullbackZone = nearVwap or nearEmaZone
+trendLong = close > vwapValue and emaFast > emaSlow and vwapSlopeUp
+trendShort = close < vwapValue and emaFast < emaSlow and vwapSlopeDown
+t1LongScore = (inTradeWindow ? 1 : 0) + (close > vwapValue ? 1 : 0) + (emaFast > emaSlow ? 1 : 0) + (pullbackZone ? 1 : 0) + (volumeOk ? 1 : 0)
+t1ShortScore = (inTradeWindow ? 1 : 0) + (close < vwapValue ? 1 : 0) + (emaFast < emaSlow ? 1 : 0) + (pullbackZone ? 1 : 0) + (volumeOk ? 1 : 0)
+t1Score = trendLong ? t1LongScore : trendShort ? t1ShortScore : math.max(t1LongScore, t1ShortScore) - 1
+t1Direction = trendLong ? "Long" : trendShort ? "Short" : "Neutral"
+
+// T2_SWEEP: Asian range sweep + simple MSS proxy.
+closeInsideAfterSweepHigh = rangeReady and sweptAbove and close < lockedAsianHigh and close > lockedAsianLow
+closeInsideAfterSweepLow = rangeReady and sweptBelow and close > lockedAsianLow and close < lockedAsianHigh
+bullMss = close > ta.highest(high[1], mssLookback)
+bearMss = close < ta.lowest(low[1], mssLookback)
+t2LongScore = (inLondon ? 1 : 0) + (rangeOk ? 1 : 0) + (sweptBelow ? 1 : 0) + (closeInsideAfterSweepLow ? 1 : 0) + (bullMss ? 1 : 0)
+t2ShortScore = (inLondon ? 1 : 0) + (rangeOk ? 1 : 0) + (sweptAbove ? 1 : 0) + (closeInsideAfterSweepHigh ? 1 : 0) + (bearMss ? 1 : 0)
+t2Score = math.max(t2LongScore, t2ShortScore)
+t2Direction = t2LongScore > t2ShortScore ? "Long" : t2ShortScore > t2LongScore ? "Short" : "Neutral"
+
+// T3_COMPRESS: compression + displacement breakout / retest candidate.
+bbBasis = ta.sma(close, bbLength)
+bbDev = bbMult * ta.stdev(close, bbLength)
+bbWidth = bbBasis != 0 ? ((bbBasis + bbDev) - (bbBasis - bbDev)) / bbBasis : na
+bbWidthRank = ta.percentrank(bbWidth, compressionLookback)
+atrAverage = ta.sma(atr, compressionLookback)
+atrCompressed = atrAverage > 0 ? atr / atrAverage <= atrCompressionMax : false
+bbCompressed = not na(bbWidthRank) and bbWidthRank <= bbWidthRankMax
+compressionOk = bbCompressed or atrCompressed
+compressionHigh = ta.highest(high[1], breakoutLookback)
+compressionLow = ta.lowest(low[1], breakoutLookback)
+breakoutLong = inTradeWindow and close > compressionHigh and bodyPct >= breakoutBodyMin and volumeOk
+breakoutShort = inTradeWindow and close < compressionLow and bodyPct >= breakoutBodyMin and volumeOk
+retestLong = inTradeWindow and close > compressionHigh and low <= compressionHigh
+retestShort = inTradeWindow and close < compressionLow and high >= compressionLow
+t3LongScore = (inTradeWindow ? 1 : 0) + (compressionOk ? 1 : 0) + (breakoutLong or retestLong ? 1 : 0) + (bodyPct >= breakoutBodyMin ? 1 : 0) + (volumeOk ? 1 : 0)
+t3ShortScore = (inTradeWindow ? 1 : 0) + (compressionOk ? 1 : 0) + (breakoutShort or retestShort ? 1 : 0) + (bodyPct >= breakoutBodyMin ? 1 : 0) + (volumeOk ? 1 : 0)
+t3Score = math.max(t3LongScore, t3ShortScore)
+t3Direction = t3LongScore > t3ShortScore ? "Long" : t3ShortScore > t3LongScore ? "Short" : "Neutral"
+
+bestScore = math.max(t1Score, math.max(t2Score, t3Score))
+bestTemplate = "T0_NO_TRADE"
+bestDirection = "Neutral"
+bestReason = "No technical edge or manual macro/news block."
+
+if not manualNewsBlock and bestScore >= minScoreToTrade
+    if t1Score >= t2Score and t1Score >= t3Score
+        bestTemplate := "T1_VWAP"
+        bestDirection := t1Direction
+        bestReason := "Trend/VWAP continuation has highest score."
+    else if t2Score >= t1Score and t2Score >= t3Score
+        bestTemplate := "T2_SWEEP"
+        bestDirection := t2Direction
+        bestReason := "Asian liquidity sweep / MSS proxy has highest score."
+    else
+        bestTemplate := "T3_COMPRESS"
+        bestDirection := t3Direction
+        bestReason := "Compression breakout / retest has highest score."
+
+recommendationCode = bestTemplate == "T1_VWAP" ? 1 : bestTemplate == "T2_SWEEP" ? 2 : bestTemplate == "T3_COMPRESS" ? 3 : 0
+newRecommendation = recommendationCode != recommendationCode[1]
+
+// Data-window plots; table is for visual use.
+plot(recommendationCode, "Recommended Template Code (0=T0,1=T1,2=T2,3=T3)", color=color.new(color.white, 0))
+plot(t1Score, "T1_VWAP Score", color=color.new(color.green, 0))
+plot(t2Score, "T2_SWEEP Score", color=color.new(color.orange, 0))
+plot(t3Score, "T3_COMPRESS Score", color=color.new(color.blue, 0))
+plot(manualNewsBlock ? 1 : 0, "Manual News Block", color=color.new(color.red, 0))
+
+plot(showKeyLevels ? vwapValue : na, "VWAP", color=color.new(color.purple, 0), linewidth=2)
+plot(showKeyLevels ? emaFast : na, "EMA 9", color=color.new(color.teal, 0))
+plot(showKeyLevels ? emaSlow : na, "EMA 20", color=color.new(color.yellow, 0))
+plot(showKeyLevels and rangeReady ? lockedAsianHigh : na, "Asian High", color=color.new(color.orange, 0), style=plot.style_linebr)
+plot(showKeyLevels and rangeReady ? lockedAsianLow : na, "Asian Low", color=color.new(color.orange, 0), style=plot.style_linebr)
+plot(showKeyLevels and rangeReady ? asianMid : na, "Asian Mid", color=color.new(color.orange, 55), style=plot.style_linebr)
+
+plotshape(newRecommendation and bestTemplate == "T1_VWAP", "New T1_VWAP Recommendation", shape.circle, location.top, color=color.green, size=size.tiny, text="T1")
+plotshape(newRecommendation and bestTemplate == "T2_SWEEP", "New T2_SWEEP Recommendation", shape.circle, location.top, color=color.orange, size=size.tiny, text="T2")
+plotshape(newRecommendation and bestTemplate == "T3_COMPRESS", "New T3_COMPRESS Recommendation", shape.circle, location.top, color=color.blue, size=size.tiny, text="T3")
+plotshape(newRecommendation and bestTemplate == "T0_NO_TRADE", "New T0 Recommendation", shape.xcross, location.top, color=color.red, size=size.tiny, text="T0")
+
+alertcondition(newRecommendation and bestTemplate == "T1_VWAP", "Selector: T1_VWAP", "Technical selector recommends T1_VWAP on {{ticker}}.")
+alertcondition(newRecommendation and bestTemplate == "T2_SWEEP", "Selector: T2_SWEEP", "Technical selector recommends T2_SWEEP on {{ticker}}.")
+alertcondition(newRecommendation and bestTemplate == "T3_COMPRESS", "Selector: T3_COMPRESS", "Technical selector recommends T3_COMPRESS on {{ticker}}.")
+alertcondition(newRecommendation and bestTemplate == "T0_NO_TRADE", "Selector: T0_NO_TRADE", "Technical selector recommends T0_NO_TRADE on {{ticker}}.")
+
+pos = tablePosition == "Top Left" ? position.top_left : tablePosition == "Bottom Right" ? position.bottom_right : tablePosition == "Bottom Left" ? position.bottom_left : position.top_right
+var table selectorTable = table.new(pos, 2, 10, border_width=1)
+
+scoreText(score) =>
+    str.tostring(score) + "/5"
+
+templateColor(template) =>
+    template == "T1_VWAP" ? color.new(color.green, 0) : template == "T2_SWEEP" ? color.new(color.orange, 0) : template == "T3_COMPRESS" ? color.new(color.blue, 0) : color.new(color.red, 0)
+
+if showTable and barstate.islast
+    table.cell(selectorTable, 0, 0, "Selector", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(selectorTable, 1, 0, bestTemplate, text_color=color.white, bgcolor=templateColor(bestTemplate))
+    table.cell(selectorTable, 0, 1, "Direction", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(selectorTable, 1, 1, bestDirection, text_color=color.white, bgcolor=color.new(color.black, 70))
+    table.cell(selectorTable, 0, 2, "Best Score", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(selectorTable, 1, 2, scoreText(bestScore), text_color=color.white, bgcolor=color.new(color.black, 70))
+    table.cell(selectorTable, 0, 3, "T1 VWAP", text_color=color.white, bgcolor=color.new(color.green, 60))
+    table.cell(selectorTable, 1, 3, scoreText(t1Score), text_color=color.white, bgcolor=color.new(color.green, 75))
+    table.cell(selectorTable, 0, 4, "T2 Sweep", text_color=color.white, bgcolor=color.new(color.orange, 60))
+    table.cell(selectorTable, 1, 4, scoreText(t2Score), text_color=color.white, bgcolor=color.new(color.orange, 75))
+    table.cell(selectorTable, 0, 5, "T3 Compress", text_color=color.white, bgcolor=color.new(color.blue, 60))
+    table.cell(selectorTable, 1, 5, scoreText(t3Score), text_color=color.white, bgcolor=color.new(color.blue, 75))
+    table.cell(selectorTable, 0, 6, "Session", text_color=color.white, bgcolor=color.new(color.black, 0))
+    sessionText = inLondon ? "London" : inNy ? "NY/Overlap" : inAsian ? "Asian Ref" : "Off"
+    table.cell(selectorTable, 1, 6, sessionText, text_color=color.white, bgcolor=color.new(color.black, 70))
+    table.cell(selectorTable, 0, 7, "Volume OK", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(selectorTable, 1, 7, volumeOk ? "YES" : "NO", text_color=color.white, bgcolor=volumeOk ? color.new(color.green, 65) : color.new(color.red, 65))
+    table.cell(selectorTable, 0, 8, "News Block", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(selectorTable, 1, 8, manualNewsBlock ? "ON" : "OFF", text_color=color.white, bgcolor=manualNewsBlock ? color.new(color.red, 40) : color.new(color.green, 75))
+    table.cell(selectorTable, 0, 9, "Reason", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(selectorTable, 1, 9, bestReason, text_color=color.white, bgcolor=color.new(color.black, 70))

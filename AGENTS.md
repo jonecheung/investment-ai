@@ -64,6 +64,7 @@ For intraday template selection (which Pine strategy to use today):
 - **Output:** Executive Summary + JSON (`data/parallel/output-daily-fx-strategy-brief.json`) with per-market `template_id` (`T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, `T0_NO_TRADE`) and Pine filenames
 - **Beginner Focus Mode:** focus only on `XAUUSD`, `EURUSD`, and `USDJPY`; prioritize London, London/NY overlap, and NY morning; recommend at most one primary setup/day plus at most two watchlist setups/day.
 - **XAUUSD handling:** treat gold separately from FX majors. Always state quote/tick convention, volatility scale, session liquidity, and macro drivers (USD, real yields, Fed expectations, risk sentiment).
+- **Technical selector:** `data/tradingview/daily-strategy-selector.pine` can score chart conditions for `T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, and `T0_NO_TRADE` after macro screening. It is an indicator, not an automated strategy, and must not override macro/event no-trade calls.
 
 ### Output Standardization Policy (v1)
 

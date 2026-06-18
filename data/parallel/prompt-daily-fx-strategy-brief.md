@@ -16,7 +16,7 @@ Same-day execution brief: classify FX / XAUUSD regime per market and **recommend
 2. Run `expand-new-ideas` — auto-fills `Research Input` from **Research Prompt** below when Original Idea matches `Daily FX strategy brief`.
 3. Run `run-expanded-ideas-deep-research` — uses `pro-fast` for daily brief ideas.
 4. Poll with `poll-deep-research-runs`; read `Executive Summary` + JSON `template_id` per market.
-5. Open recommended Pine indicator/strategy on TradingView for the London / NY session.
+5. If macro context permits trading, open `daily-strategy-selector.pine` as a technical selector, then open the recommended Pine indicator/strategy for the London / NY session.
 
 ## Beginner Focus Mode
 
@@ -69,6 +69,12 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 | T3_COMPRESS | Volatility Compression Expansion + Retest | Compression breakout / expansion day | H1 + M15 | 0700-1000 or 1200-1600 | pending: `vol-compression-expansion-retest.pine` | pending: `vol-compression-expansion-retest-strategy.pine` | SECONDARY |
 | T4_SWING_BACKUP | Supertrend + 200 EMA Long | Swing backup when intraday blocked | 1D | N/A | supertrend-ema-atr-long.pine | (no strategy file) | BACKUP |
 | T0_NO_TRADE | No Trade / Cash Mode | Holiday, event, drift, no edge | — | — | — | — | BLOCK |
+
+### Technical selector helper
+
+`data/tradingview/daily-strategy-selector.pine` is a TradingView **indicator** that scores technical conditions for `T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, and `T0_NO_TRADE`.
+
+Use it only after the macro brief says trading is allowed. It cannot detect FOMC/CPI/NFP/news risk or real-yield macro drivers. If macro brief says `T0_NO_TRADE`, do not override it with the selector.
 
 **Legacy templates retained for backtest/reference only, not for new daily recommendations unless explicitly requested:**
 
