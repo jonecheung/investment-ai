@@ -21,10 +21,9 @@
           "items": {
             "type": "string",
             "enum": [
-              "HK",
-              "JP",
-              "US",
-              "OTHER"
+              "XAUUSD",
+              "EURUSD",
+              "USDJPY"
             ]
           }
         },
@@ -85,7 +84,12 @@
         "properties": {
           "ticker": {
             "type": "string",
-            "description": "Currency pair symbol without separator, e.g. EURUSD, GBPJPY."
+            "enum": [
+              "XAUUSD",
+              "EURUSD",
+              "USDJPY"
+            ],
+            "description": "Allowed focus market symbol only: XAUUSD, EURUSD, or USDJPY."
           },
           "company_name": {
             "type": "string",
@@ -108,8 +112,6 @@
             "type": "string",
             "enum": [
               "FX_MAJOR",
-              "FX_CROSS",
-              "FX_EM",
               "OTHER"
             ]
           },
