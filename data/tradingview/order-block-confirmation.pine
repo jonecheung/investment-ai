@@ -1,0 +1,233 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Standalone order-block confirmation tool for XAUUSD / EURUSD / USDJPY intraday trading.
+// Use as confirmation after Parallel macro brief + daily selector. This indicator does NOT place trades.
+indicator("Order Block Confirmation", overlay=true, max_boxes_count=20, max_labels_count=100)
+
+sessionGroup = "Sessions"
+activeSession = input.session("0700-1600", "London/NY Active Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+manualNewsBlock = input.bool(false, "Manual News/Event Block", group=sessionGroup)
+
+structureGroup = "Structure / Displacement"
+structureLookback = input.int(10, "Structure Break Lookback", minval=3, maxval=50, group=structureGroup)
+obSearchBars = input.int(8, "Search Last Opposite Candle Bars", minval=1, maxval=30, group=structureGroup)
+atrLength = input.int(14, "ATR Length", minval=1, group=structureGroup)
+displacementAtrMin = input.float(0.8, "Displacement Range ATR Min", minval=0.1, step=0.1, group=structureGroup)
+displacementBodyMin = input.float(0.55, "Displacement Body % Min", minval=0.1, maxval=1.0, step=0.05, group=structureGroup)
+requireFvg = input.bool(false, "Require Simple FVG On Displacement", group=structureGroup)
+
+filterGroup = "Filters"
+useTrendFilter = input.bool(false, "Use EMA 20/200 Trend Filter", group=filterGroup)
+emaFastLength = input.int(20, "Fast EMA", minval=1, group=filterGroup)
+emaSlowLength = input.int(200, "Slow EMA", minval=1, group=filterGroup)
+useVolumeFilter = input.bool(false, "Require Volume Above Average", group=filterGroup)
+volumeLength = input.int(20, "Volume Average Length", minval=1, group=filterGroup)
+volumeMultiplier = input.float(1.0, "Volume Multiplier", minval=0.1, step=0.05, group=filterGroup)
+
+zoneGroup = "Zone Management"
+stopBufferAtr = input.float(0.10, "Invalidation Buffer ATR", minval=0.0, step=0.05, group=zoneGroup)
+deactivateAfterMitigation = input.bool(false, "Deactivate Zone After First Rejection", group=zoneGroup)
+showOnlyLatest = input.bool(true, "Show Only Latest Bull/Bear Zone", group=zoneGroup)
+
+displayGroup = "Display"
+showTable = input.bool(true, "Show Order Block Table", group=displayGroup)
+tablePosition = input.string("Top Right", "Table Position", options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group=displayGroup)
+showEma = input.bool(false, "Show EMA Filter Lines", group=displayGroup)
+
+inSession = not manualNewsBlock and not na(time(timeframe.period, activeSession, sessionTimezone))
+
+atr = ta.atr(atrLength)
+emaFast = ta.ema(close, emaFastLength)
+emaSlow = ta.ema(close, emaSlowLength)
+vol = nz(volume, 1.0)
+volAvg = ta.sma(vol, volumeLength)
+volumeOk = not useVolumeFilter or vol >= volAvg * volumeMultiplier
+
+body = math.abs(close - open)
+barRange = high - low
+bodyPct = barRange > 0 ? body / barRange : 0.0
+displacementOk = barRange >= atr * displacementAtrMin and bodyPct >= displacementBodyMin
+bullFvg = low > high[2]
+bearFvg = high < low[2]
+fvgLongOk = not requireFvg or bullFvg
+fvgShortOk = not requireFvg or bearFvg
+
+previousHigh = ta.highest(high[1], structureLookback)
+previousLow = ta.lowest(low[1], structureLookback)
+bullStructureBreak = close > previousHigh
+bearStructureBreak = close < previousLow
+bullTrendOk = not useTrendFilter or emaFast > emaSlow
+bearTrendOk = not useTrendFilter or emaFast < emaSlow
+
+newBullImpulse = inSession and bullStructureBreak and displacementOk and fvgLongOk and bullTrendOk and volumeOk
+newBearImpulse = inSession and bearStructureBreak and displacementOk and fvgShortOk and bearTrendOk and volumeOk
+
+var float bullObHigh = na
+var float bullObLow = na
+var int bullObBar = na
+var bool bullObActive = false
+var bool bullObSignaled = false
+var box bullBox = na
+
+var float bearObHigh = na
+var float bearObLow = na
+var int bearObBar = na
+var bool bearObActive = false
+var bool bearObSignaled = false
+var box bearBox = na
+
+if newBullImpulse
+    float foundHigh = na
+    float foundLow = na
+    int foundBar = na
+    for i = 1 to obSearchBars
+        if na(foundHigh) and close[i] < open[i]
+            foundHigh := high[i]
+            foundLow := low[i]
+            foundBar := bar_index[i]
+    if not na(foundHigh) and foundHigh > foundLow
+        bullObHigh := foundHigh
+        bullObLow := foundLow
+        bullObBar := foundBar
+        bullObActive := true
+        bullObSignaled := false
+        if showOnlyLatest
+            box.delete(bullBox)
+        bullBox := box.new(
+             left=bullObBar,
+             top=bullObHigh,
+             right=bar_index,
+             bottom=bullObLow,
+             xloc=xloc.bar_index,
+             extend=extend.right,
+             border_color=color.new(color.green, 0),
+             bgcolor=color.new(color.green, 85))
+
+if newBearImpulse
+    float foundHigh = na
+    float foundLow = na
+    int foundBar = na
+    for i = 1 to obSearchBars
+        if na(foundHigh) and close[i] > open[i]
+            foundHigh := high[i]
+            foundLow := low[i]
+            foundBar := bar_index[i]
+    if not na(foundHigh) and foundHigh > foundLow
+        bearObHigh := foundHigh
+        bearObLow := foundLow
+        bearObBar := foundBar
+        bearObActive := true
+        bearObSignaled := false
+        if showOnlyLatest
+            box.delete(bearBox)
+        bearBox := box.new(
+             left=bearObBar,
+             top=bearObHigh,
+             right=bar_index,
+             bottom=bearObLow,
+             xloc=xloc.bar_index,
+             extend=extend.right,
+             border_color=color.new(color.red, 0),
+             bgcolor=color.new(color.red, 85))
+
+bullObTouched = bullObActive and not na(bullObHigh) and low <= bullObHigh and high >= bullObLow
+bearObTouched = bearObActive and not na(bearObLow) and high >= bearObLow and low <= bearObHigh
+
+bullRejection = bullObTouched and close > open and close > bullObHigh
+bearRejection = bearObTouched and close < open and close < bearObLow
+
+bullInvalidated = bullObActive and close < bullObLow - stopBufferAtr * atr
+bearInvalidated = bearObActive and close > bearObHigh + stopBufferAtr * atr
+
+newBullRejection = bullRejection and not bullObSignaled
+newBearRejection = bearRejection and not bearObSignaled
+
+if newBullRejection
+    bullObSignaled := true
+    label.new(
+         bar_index,
+         low,
+         "Bullish OB Rejection\nZone: " + str.tostring(bullObLow, format.mintick) + " - " + str.tostring(bullObHigh, format.mintick),
+         style=label.style_label_up,
+         textcolor=color.white,
+         color=color.new(color.green, 0))
+    if deactivateAfterMitigation
+        bullObActive := false
+
+if newBearRejection
+    bearObSignaled := true
+    label.new(
+         bar_index,
+         high,
+         "Bearish OB Rejection\nZone: " + str.tostring(bearObLow, format.mintick) + " - " + str.tostring(bearObHigh, format.mintick),
+         style=label.style_label_down,
+         textcolor=color.white,
+         color=color.new(color.red, 0))
+    if deactivateAfterMitigation
+        bearObActive := false
+
+if bullInvalidated
+    bullObActive := false
+    bullObSignaled := false
+    box.set_bgcolor(bullBox, color.new(color.gray, 90))
+    box.set_border_color(bullBox, color.new(color.gray, 60))
+
+if bearInvalidated
+    bearObActive := false
+    bearObSignaled := false
+    box.set_bgcolor(bearBox, color.new(color.gray, 90))
+    box.set_border_color(bearBox, color.new(color.gray, 60))
+
+longConfirmation = newBullRejection
+shortConfirmation = newBearRejection
+confirmationCode = longConfirmation ? 1 : shortConfirmation ? -1 : 0
+
+plot(bullObActive ? bullObHigh : na, "Bullish OB High", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(bullObActive ? bullObLow : na, "Bullish OB Low", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(bearObActive ? bearObHigh : na, "Bearish OB High", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(bearObActive ? bearObLow : na, "Bearish OB Low", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(bullObActive ? 1 : 0, "Bullish OB Active", color=color.new(color.green, 0))
+plot(bearObActive ? 1 : 0, "Bearish OB Active", color=color.new(color.red, 0))
+plot(longConfirmation ? 1 : 0, "Long OB Confirmation", color=color.new(color.lime, 0))
+plot(shortConfirmation ? 1 : 0, "Short OB Confirmation", color=color.new(color.orange, 0))
+plot(confirmationCode, "Confirmation Code (-1=Short,0=Neutral,1=Long)", color=color.new(color.white, 0))
+
+plot(showEma ? emaFast : na, "EMA Fast", color=color.new(color.teal, 0))
+plot(showEma ? emaSlow : na, "EMA Slow", color=color.new(color.blue, 20))
+
+plotshape(newBullImpulse, "New Bullish OB", shape.square, location.belowbar, color=color.new(color.green, 0), size=size.tiny, text="OB+")
+plotshape(newBearImpulse, "New Bearish OB", shape.square, location.abovebar, color=color.new(color.red, 0), size=size.tiny, text="OB-")
+plotshape(longConfirmation, "Bullish OB Rejection", shape.triangleup, location.belowbar, color=color.lime, size=size.small, text="OB L")
+plotshape(shortConfirmation, "Bearish OB Rejection", shape.triangledown, location.abovebar, color=color.orange, size=size.small, text="OB S")
+
+alertcondition(longConfirmation, "Order Block Long Confirmation", "Bullish order-block rejection on {{ticker}} {{interval}}.")
+alertcondition(shortConfirmation, "Order Block Short Confirmation", "Bearish order-block rejection on {{ticker}} {{interval}}.")
+alertcondition(newBullImpulse, "New Bullish Order Block", "New bullish order block created on {{ticker}} {{interval}}.")
+alertcondition(newBearImpulse, "New Bearish Order Block", "New bearish order block created on {{ticker}} {{interval}}.")
+
+pos = tablePosition == "Top Left" ? position.top_left : tablePosition == "Bottom Right" ? position.bottom_right : tablePosition == "Bottom Left" ? position.bottom_left : position.top_right
+var table infoTable = table.new(pos, 2, 8, border_width=1)
+
+zoneText(active, lowValue, highValue) =>
+    active and not na(lowValue) and not na(highValue) ? str.tostring(lowValue, format.mintick) + " - " + str.tostring(highValue, format.mintick) : "None"
+
+if showTable and barstate.islast
+    biasText = longConfirmation ? "LONG CONFIRM" : shortConfirmation ? "SHORT CONFIRM" : bullObActive ? "BULL ZONE" : bearObActive ? "BEAR ZONE" : "NEUTRAL"
+    biasColor = longConfirmation or bullObActive ? color.new(color.green, 0) : shortConfirmation or bearObActive ? color.new(color.red, 0) : color.new(color.gray, 30)
+    table.cell(infoTable, 0, 0, "Order Block", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 0, biasText, text_color=color.white, bgcolor=biasColor)
+    table.cell(infoTable, 0, 1, "Bull Zone", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 1, zoneText(bullObActive, bullObLow, bullObHigh), text_color=color.white, bgcolor=color.new(color.green, 75))
+    table.cell(infoTable, 0, 2, "Bear Zone", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 2, zoneText(bearObActive, bearObLow, bearObHigh), text_color=color.white, bgcolor=color.new(color.red, 75))
+    table.cell(infoTable, 0, 3, "Structure", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 3, bullStructureBreak ? "Bull Break" : bearStructureBreak ? "Bear Break" : "None", text_color=color.white, bgcolor=color.new(color.black, 70))
+    table.cell(infoTable, 0, 4, "Displacement", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 4, displacementOk ? "YES" : "NO", text_color=color.white, bgcolor=displacementOk ? color.new(color.green, 65) : color.new(color.red, 65))
+    table.cell(infoTable, 0, 5, "Volume OK", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 5, volumeOk ? "YES" : "NO", text_color=color.white, bgcolor=volumeOk ? color.new(color.green, 65) : color.new(color.red, 65))
+    table.cell(infoTable, 0, 6, "Session", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 6, inSession ? "ACTIVE" : "OFF/BLOCK", text_color=color.white, bgcolor=inSession ? color.new(color.green, 70) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 7, "Use For", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 7, "Confirmation only", text_color=color.white, bgcolor=color.new(color.black, 70))
