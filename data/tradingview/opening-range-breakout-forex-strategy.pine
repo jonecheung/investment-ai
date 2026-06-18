@@ -12,6 +12,11 @@ strategy(
      calc_on_order_fills=true,
      process_orders_on_close=true)
 
+// PASTE INSTRUCTION:
+// 1) In TradingView Pine Editor, select all default code and delete it.
+// 2) Paste this whole file starting from line 1, including //@version=5.
+// 3) Do not paste this below another //@version, indicator(), or strategy() block.
+//
 // Backtestable ORB for FX majors on 15m/30m charts.
 // v3 (Route B): retest entry, max OR width skip, failed-breakout reversal.
 
