@@ -1,7 +1,7 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
 // Template T3_COMPRESS | Indicator | Volatility compression + breakout retest.
-indicator("T3 Vol Compression Expansion + Retest", overlay=true)
+indicator("T3 Vol Compression Expansion + Retest", overlay=true, max_lines_count=100, max_labels_count=100)
 
 sessionGroup = "Sessions"
 entrySession = input.session("0700-1000,1200-1600", "Entry Windows UTC", group=sessionGroup)
@@ -148,11 +148,32 @@ if sessionEnd
     tradeStop := na
     tradeTarget := na
 
-setupActive = (activeLong or activeShort) and not na(tradeEntry)
-newSetup = newLong or newShort
+setupActive = (activeLong or activeShort) and not na(tradeEntry) and not na(tradeStop) and not na(tradeTarget)
 activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
 activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
 rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+newSetup = (newLong or newShort) and setupActive
+
+var line entryLine = na
+var line stopLine = na
+var line targetLine = na
+var label rrLabel = na
+
+if newSetup
+    line.delete(entryLine)
+    line.delete(stopLine)
+    line.delete(targetLine)
+    label.delete(rrLabel)
+    entryLine := line.new(bar_index, tradeEntry, bar_index + 1, tradeEntry, color=color.new(color.blue, 0), width=2, extend=extend.right)
+    stopLine := line.new(bar_index, tradeStop, bar_index + 1, tradeStop, color=color.new(color.red, 0), width=2, extend=extend.right)
+    targetLine := line.new(bar_index, tradeTarget, bar_index + 1, tradeTarget, color=color.new(color.green, 0), width=2, extend=extend.right)
+    rrLabel := label.new(
+         bar_index,
+         tradeEntry,
+         "T3 " + (activeLong ? "LONG" : "SHORT") + "\nEntry: " + str.tostring(tradeEntry, format.mintick) + "\nSL: " + str.tostring(tradeStop, format.mintick) + "\nTP: " + str.tostring(tradeTarget, format.mintick) + "\nRR: " + str.tostring(rewardRiskRatio, "#.##"),
+         style=label.style_label_left,
+         textcolor=color.white,
+         color=color.new(color.blue, 0))
 
 plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
 plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
@@ -170,6 +191,6 @@ plot(rangeReady ? rangeLow : na, "Compression Range Low", color=color.new(color.
 plot(bbUpper, "BB Upper", color=color.new(color.gray, 75))
 plot(bbLower, "BB Lower", color=color.new(color.gray, 75))
 
-plotshape(newLong, "T3 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T3 L")
-plotshape(newShort, "T3 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T3 S")
+plotshape(newSetup and activeLong, "T3 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T3 L")
+plotshape(newSetup and activeShort, "T3 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T3 S")
 alertcondition(newSetup, "T3 Compression New Setup", "T3_COMPRESS setup on {{ticker}}.")

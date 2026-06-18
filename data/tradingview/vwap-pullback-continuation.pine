@@ -1,7 +1,7 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
 // Template T1_VWAP | Indicator | Use after macro brief + daily selector.
-indicator("T1 VWAP Pullback Continuation", overlay=true)
+indicator("T1 VWAP Pullback Continuation", overlay=true, max_lines_count=100, max_labels_count=100)
 
 sessionGroup = "Session"
 entrySession = input.session("0800-1800", "Entry Session UTC", group=sessionGroup)
@@ -112,11 +112,32 @@ if sessionEnd
     tradeStop := na
     tradeTarget := na
 
-setupActive = (activeLong or activeShort) and not na(tradeEntry)
-newSetup = newLong or newShort
+setupActive = (activeLong or activeShort) and not na(tradeEntry) and not na(tradeStop) and not na(tradeTarget)
 activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
 activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
 rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+newSetup = (newLong or newShort) and setupActive
+
+var line entryLine = na
+var line stopLine = na
+var line targetLine = na
+var label rrLabel = na
+
+if newSetup
+    line.delete(entryLine)
+    line.delete(stopLine)
+    line.delete(targetLine)
+    label.delete(rrLabel)
+    entryLine := line.new(bar_index, tradeEntry, bar_index + 1, tradeEntry, color=color.new(color.blue, 0), width=2, extend=extend.right)
+    stopLine := line.new(bar_index, tradeStop, bar_index + 1, tradeStop, color=color.new(color.red, 0), width=2, extend=extend.right)
+    targetLine := line.new(bar_index, tradeTarget, bar_index + 1, tradeTarget, color=color.new(color.green, 0), width=2, extend=extend.right)
+    rrLabel := label.new(
+         bar_index,
+         tradeEntry,
+         "T1 " + (activeLong ? "LONG" : "SHORT") + "\nEntry: " + str.tostring(tradeEntry, format.mintick) + "\nSL: " + str.tostring(tradeStop, format.mintick) + "\nTP: " + str.tostring(tradeTarget, format.mintick) + "\nRR: " + str.tostring(rewardRiskRatio, "#.##"),
+         style=label.style_label_left,
+         textcolor=color.white,
+         color=color.new(color.blue, 0))
 
 plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
 plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
@@ -134,6 +155,6 @@ plot(emaFast, "EMA 9", color=color.new(color.teal, 0))
 plot(emaSlow, "EMA 20", color=color.new(color.yellow, 0))
 plot(useEma200 ? emaTrend : na, "EMA 200", color=color.new(color.orange, 40))
 
-plotshape(newLong, "T1 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T1 L")
-plotshape(newShort, "T1 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T1 S")
+plotshape(newSetup and activeLong, "T1 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T1 L")
+plotshape(newSetup and activeShort, "T1 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T1 S")
 alertcondition(newSetup, "T1 VWAP New Setup", "T1_VWAP setup on {{ticker}}.")

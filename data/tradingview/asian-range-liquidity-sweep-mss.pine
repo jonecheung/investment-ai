@@ -1,7 +1,7 @@
 //@version=5
 // PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
 // Template T2_SWEEP | Indicator | Asian range liquidity sweep + MSS proxy.
-indicator("T2 Asian Range Liquidity Sweep + MSS", overlay=true)
+indicator("T2 Asian Range Liquidity Sweep + MSS", overlay=true, max_lines_count=100, max_labels_count=100)
 
 sessionGroup = "Sessions"
 asianSession = input.session("0000-0600", "Asian Range Session UTC", group=sessionGroup)
@@ -152,6 +152,27 @@ rewardRiskRatio = setupActiveRaw and activeRisk > 0 ? activeReward / activeRisk 
 setupActive = setupActiveRaw and rewardRiskRatio >= minRewardRisk
 newSetup = (newLong or newShort) and setupActive
 
+var line entryLine = na
+var line stopLine = na
+var line targetLine = na
+var label rrLabel = na
+
+if newSetup
+    line.delete(entryLine)
+    line.delete(stopLine)
+    line.delete(targetLine)
+    label.delete(rrLabel)
+    entryLine := line.new(bar_index, tradeEntry, bar_index + 1, tradeEntry, color=color.new(color.blue, 0), width=2, extend=extend.right)
+    stopLine := line.new(bar_index, tradeStop, bar_index + 1, tradeStop, color=color.new(color.red, 0), width=2, extend=extend.right)
+    targetLine := line.new(bar_index, tradeTarget, bar_index + 1, tradeTarget, color=color.new(color.green, 0), width=2, extend=extend.right)
+    rrLabel := label.new(
+         bar_index,
+         tradeEntry,
+         "T2 " + (activeLong ? "LONG" : "SHORT") + "\nEntry: " + str.tostring(tradeEntry, format.mintick) + "\nSL: " + str.tostring(tradeStop, format.mintick) + "\nTP: " + str.tostring(tradeTarget, format.mintick) + "\nRR: " + str.tostring(rewardRiskRatio, "#.##"),
+         style=label.style_label_left,
+         textcolor=color.white,
+         color=color.new(color.orange, 0))
+
 plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
 plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
 plot(setupActive ? tradeEntry : na, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
@@ -164,6 +185,6 @@ plot(sweptBelow ? 1 : 0, "Sweep Low", color=color.new(color.teal, 0))
 plot(sweptAbove ? 1 : 0, "Sweep High", color=color.new(color.orange, 0))
 
 plot(rangeReady ? asianMid : na, "Asian Mid", color=color.new(color.orange, 60), style=plot.style_linebr)
-plotshape(newLong, "T2 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T2 L")
-plotshape(newShort, "T2 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T2 S")
+plotshape(newSetup and activeLong, "T2 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T2 L")
+plotshape(newSetup and activeShort, "T2 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T2 S")
 alertcondition(newSetup, "T2 Sweep New Setup", "T2_SWEEP setup on {{ticker}}.")
