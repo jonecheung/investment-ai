@@ -1,0 +1,118 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Standalone order-flow confirmation proxy for T1_VWAP / T2_SWEEP / T3_COMPRESS.
+// This is a confirmation tool only. Spot FX / CFD volume is not true exchange order flow.
+indicator("Order Flow Confirmation Proxy", overlay=false)
+
+sessionGroup = "Sessions"
+resetSession = input.session("0000-2359", "CVD Reset Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+
+cvdGroup = "CVD Proxy"
+cvdLookback = input.int(5, "CVD Direction Lookback", minval=1, group=cvdGroup)
+divLookback = input.int(20, "Divergence Lookback", minval=5, group=cvdGroup)
+smoothLength = input.int(3, "CVD Smoothing", minval=1, group=cvdGroup)
+
+volumeGroup = "Volume"
+volumeLength = input.int(20, "Volume Average Length", minval=1, group=volumeGroup)
+volumeMultiplier = input.float(1.0, "Volume OK Multiplier", minval=0.1, step=0.05, group=volumeGroup)
+spikeMultiplier = input.float(1.5, "Volume Spike Multiplier", minval=0.5, step=0.1, group=volumeGroup)
+
+trendGroup = "Trend Context"
+emaFastLength = input.int(9, "Fast EMA", minval=1, group=trendGroup)
+emaSlowLength = input.int(20, "Slow EMA", minval=1, group=trendGroup)
+useVwapContext = input.bool(true, "Use VWAP Context", group=trendGroup)
+
+displayGroup = "Display"
+showTable = input.bool(true, "Show Confirmation Table", group=displayGroup)
+tablePosition = input.string("Top Right", "Table Position", options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group=displayGroup)
+
+inResetSession = not na(time(timeframe.period, resetSession, sessionTimezone))
+resetStart = inResetSession and not inResetSession[1]
+
+vol = nz(volume, 1.0)
+signedVolume = close > open ? vol : close < open ? -vol : 0.0
+
+var float cvd = na
+if resetStart or na(cvd)
+    cvd := signedVolume
+else
+    cvd += signedVolume
+
+cvdSmooth = ta.ema(cvd, smoothLength)
+cvdDelta = cvdSmooth - cvdSmooth[cvdLookback]
+cvdRising = cvdDelta > 0
+cvdFalling = cvdDelta < 0
+
+volumeAverage = ta.sma(vol, volumeLength)
+volumeOk = vol >= volumeAverage * volumeMultiplier
+volumeSpike = vol >= volumeAverage * spikeMultiplier
+
+emaFast = ta.ema(close, emaFastLength)
+emaSlow = ta.ema(close, emaSlowLength)
+vwapValue = ta.vwap(hlc3)
+aboveVwap = close > vwapValue
+belowVwap = close < vwapValue
+emaBull = emaFast > emaSlow
+emaBear = emaFast < emaSlow
+
+priceHigherHigh = high >= ta.highest(high[1], divLookback)
+priceLowerLow = low <= ta.lowest(low[1], divLookback)
+cvdHigherHigh = cvdSmooth >= ta.highest(cvdSmooth[1], divLookback)
+cvdLowerLow = cvdSmooth <= ta.lowest(cvdSmooth[1], divLookback)
+
+bearishDivergence = priceHigherHigh and not cvdHigherHigh
+bullishDivergence = priceLowerLow and not cvdLowerLow
+
+longConfirm = cvdRising and volumeOk and emaBull and (not useVwapContext or aboveVwap)
+shortConfirm = cvdFalling and volumeOk and emaBear and (not useVwapContext or belowVwap)
+
+// For T2 sweep reversal, divergence can be useful even when trend filters are not aligned.
+sweepLongConfirm = bullishDivergence or (cvdRising and volumeSpike)
+sweepShortConfirm = bearishDivergence or (cvdFalling and volumeSpike)
+
+confirmationCode = longConfirm ? 1 : shortConfirm ? -1 : 0
+
+plot(cvdSmooth, "CVD Proxy", color=cvdRising ? color.lime : cvdFalling ? color.red : color.gray, linewidth=2)
+plot(0, "Zero Line", color=color.new(color.gray, 70))
+plot(cvdDelta, "CVD Delta", color=color.new(color.blue, 0))
+plot(longConfirm ? 1 : 0, "Long Confirmation", color=color.new(color.green, 0))
+plot(shortConfirm ? 1 : 0, "Short Confirmation", color=color.new(color.red, 0))
+plot(sweepLongConfirm ? 1 : 0, "Sweep Long Confirmation", color=color.new(color.teal, 0))
+plot(sweepShortConfirm ? 1 : 0, "Sweep Short Confirmation", color=color.new(color.orange, 0))
+plot(volumeOk ? 1 : 0, "Volume OK", color=color.new(color.yellow, 0))
+plot(volumeSpike ? 1 : 0, "Volume Spike", color=color.new(color.purple, 0))
+plot(confirmationCode, "Confirmation Code (-1=Short,0=Neutral,1=Long)", color=color.new(color.white, 0))
+
+plotshape(bullishDivergence, "Bullish CVD Divergence", shape.triangleup, location.bottom, color=color.teal, size=size.tiny, text="Bull Div")
+plotshape(bearishDivergence, "Bearish CVD Divergence", shape.triangledown, location.top, color=color.orange, size=size.tiny, text="Bear Div")
+
+alertcondition(longConfirm, "Order Flow Long Confirmation", "Order-flow proxy confirms LONG on {{ticker}} {{interval}}.")
+alertcondition(shortConfirm, "Order Flow Short Confirmation", "Order-flow proxy confirms SHORT on {{ticker}} {{interval}}.")
+alertcondition(sweepLongConfirm, "Order Flow Sweep Long Confirmation", "Order-flow proxy supports sweep LONG on {{ticker}} {{interval}}.")
+alertcondition(sweepShortConfirm, "Order Flow Sweep Short Confirmation", "Order-flow proxy supports sweep SHORT on {{ticker}} {{interval}}.")
+
+pos = tablePosition == "Top Left" ? position.top_left : tablePosition == "Bottom Right" ? position.bottom_right : tablePosition == "Bottom Left" ? position.bottom_left : position.top_right
+var table infoTable = table.new(pos, 2, 9, border_width=1)
+
+if showTable and barstate.islast
+    biasText = longConfirm ? "LONG" : shortConfirm ? "SHORT" : "NEUTRAL"
+    biasColor = longConfirm ? color.new(color.green, 0) : shortConfirm ? color.new(color.red, 0) : color.new(color.gray, 30)
+    table.cell(infoTable, 0, 0, "Order Flow", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 0, biasText, text_color=color.white, bgcolor=biasColor)
+    table.cell(infoTable, 0, 1, "CVD Direction", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 1, cvdRising ? "Rising" : cvdFalling ? "Falling" : "Flat", text_color=color.white, bgcolor=cvdRising ? color.new(color.green, 65) : cvdFalling ? color.new(color.red, 65) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 2, "Volume OK", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 2, volumeOk ? "YES" : "NO", text_color=color.white, bgcolor=volumeOk ? color.new(color.green, 65) : color.new(color.red, 65))
+    table.cell(infoTable, 0, 3, "Volume Spike", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 3, volumeSpike ? "YES" : "NO", text_color=color.white, bgcolor=volumeSpike ? color.new(color.purple, 50) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 4, "EMA 9/20", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 4, emaBull ? "Bull" : emaBear ? "Bear" : "Flat", text_color=color.white, bgcolor=emaBull ? color.new(color.green, 65) : emaBear ? color.new(color.red, 65) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 5, "VWAP Side", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 5, aboveVwap ? "Above" : belowVwap ? "Below" : "At", text_color=color.white, bgcolor=aboveVwap ? color.new(color.green, 65) : belowVwap ? color.new(color.red, 65) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 6, "Bull Div", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 6, bullishDivergence ? "YES" : "NO", text_color=color.white, bgcolor=bullishDivergence ? color.new(color.teal, 40) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 7, "Bear Div", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 7, bearishDivergence ? "YES" : "NO", text_color=color.white, bgcolor=bearishDivergence ? color.new(color.orange, 40) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 8, "Use For", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 8, "Confirm only", text_color=color.white, bgcolor=color.new(color.black, 70))

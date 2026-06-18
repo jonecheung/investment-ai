@@ -65,6 +65,7 @@ For intraday template selection (which Pine strategy to use today):
 - **Beginner Focus Mode:** focus only on `XAUUSD`, `EURUSD`, and `USDJPY`; prioritize London, London/NY overlap, and NY morning; recommend at most one primary setup/day plus at most two watchlist setups/day.
 - **XAUUSD handling:** treat gold separately from FX majors. Always state quote/tick convention, volatility scale, session liquidity, and macro drivers (USD, real yields, Fed expectations, risk sentiment).
 - **Technical selector:** `data/tradingview/daily-strategy-selector.pine` can score chart conditions for `T1_VWAP`, `T2_SWEEP`, `T3_COMPRESS`, and `T0_NO_TRADE` after macro screening. It is an indicator, not an automated strategy, and must not override macro/event no-trade calls.
+- **Order-flow confirmation:** `data/tradingview/order-flow-confirmation.pine` is an optional confirmation overlay using CVD proxy, volume, EMA, VWAP side, and divergence. Use it only as confirmation for T1/T2/T3; never as a standalone entry trigger.
 
 ### Output Standardization Policy (v1)
 
