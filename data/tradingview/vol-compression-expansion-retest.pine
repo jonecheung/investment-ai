@@ -1,0 +1,175 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T3_COMPRESS | Indicator | Volatility compression + breakout retest.
+indicator("T3 Vol Compression Expansion + Retest", overlay=true)
+
+sessionGroup = "Sessions"
+entrySession = input.session("0700-1000,1200-1600", "Entry Windows UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+manualNewsBlock = input.bool(false, "Manual News/Event Block", group=sessionGroup)
+
+compressionGroup = "Compression"
+bbLength = input.int(20, "Bollinger Length", minval=2, group=compressionGroup)
+bbMult = input.float(2.0, "Bollinger StdDev", minval=0.5, step=0.1, group=compressionGroup)
+compressionLookback = input.int(100, "Compression Percentile Lookback", minval=20, group=compressionGroup)
+bbWidthRankMax = input.float(20.0, "BB Width Percentile Max", minval=1, maxval=100, step=1, group=compressionGroup)
+atrCompressionMax = input.float(0.85, "ATR / ATR Avg Max", minval=0.1, step=0.05, group=compressionGroup)
+rangeLookback = input.int(24, "Compression Range Lookback", minval=5, group=compressionGroup)
+
+entryGroup = "Breakout / Retest"
+requireRetest = input.bool(true, "Require Retest After Breakout", group=entryGroup)
+breakoutBodyMin = input.float(0.55, "Breakout Body % Min", minval=0.1, maxval=1.0, step=0.05, group=entryGroup)
+requireVolume = input.bool(true, "Require Volume Confirmation", group=entryGroup)
+maxBarsAfterBreakout = input.int(12, "Max Bars After Breakout For Retest", minval=1, group=entryGroup)
+
+riskGroup = "Risk / Target"
+atrLength = input.int(14, "ATR Length", minval=1, group=riskGroup)
+rrTarget = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=riskGroup)
+targetMode = input.string("Fixed RR", "Target Mode", options=["Fixed RR", "Range Height"], group=riskGroup)
+rangeHeightTargetMult = input.float(1.5, "Range Height Target Multiple", minval=0.5, step=0.1, group=riskGroup)
+volumeLength = input.int(20, "Volume Average Length", minval=1, group=riskGroup)
+volumeMultiplier = input.float(1.0, "Volume Multiplier", minval=0.1, step=0.05, group=riskGroup)
+
+inSession = not manualNewsBlock and not na(time(timeframe.period, entrySession, sessionTimezone))
+sessionEnd = not inSession and inSession[1]
+
+atr = ta.atr(atrLength)
+atrAvg = ta.sma(atr, compressionLookback)
+vol = nz(volume, 1.0)
+volAvg = ta.sma(vol, volumeLength)
+volumeOk = not requireVolume or vol >= volAvg * volumeMultiplier
+
+body = math.abs(close - open)
+barRange = high - low
+bodyPct = barRange > 0 ? body / barRange : 0.0
+
+bbBasis = ta.sma(close, bbLength)
+bbDev = bbMult * ta.stdev(close, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+bbWidth = bbBasis != 0 ? (bbUpper - bbLower) / bbBasis : na
+bbWidthRank = ta.percentrank(bbWidth, compressionLookback)
+bbCompressed = not na(bbWidthRank) and bbWidthRank <= bbWidthRankMax
+atrCompressed = atrAvg > 0 ? atr / atrAvg <= atrCompressionMax : false
+compressionOk = bbCompressed or atrCompressed
+
+rangeHigh = ta.highest(high[1], rangeLookback)
+rangeLow = ta.lowest(low[1], rangeLookback)
+rangeHeight = rangeHigh - rangeLow
+rangeReady = not na(rangeHigh) and not na(rangeLow) and rangeHigh > rangeLow
+
+breakoutLong = inSession and rangeReady and compressionOk and close > rangeHigh and close[1] <= rangeHigh and bodyPct >= breakoutBodyMin and volumeOk
+breakoutShort = inSession and rangeReady and compressionOk and close < rangeLow and close[1] >= rangeLow and bodyPct >= breakoutBodyMin and volumeOk
+
+var bool armedLong = false
+var bool armedShort = false
+var float armedHigh = na
+var float armedLow = na
+var int armedBar = na
+
+if breakoutLong
+    armedLong := true
+    armedShort := false
+    armedHigh := rangeHigh
+    armedLow := rangeLow
+    armedBar := bar_index
+else if breakoutShort
+    armedShort := true
+    armedLong := false
+    armedHigh := rangeHigh
+    armedLow := rangeLow
+    armedBar := bar_index
+
+if not na(armedBar) and bar_index - armedBar > maxBarsAfterBreakout
+    armedLong := false
+    armedShort := false
+    armedHigh := na
+    armedLow := na
+    armedBar := na
+
+retestLong = armedLong and inSession and low <= armedHigh and close > armedHigh
+retestShort = armedShort and inSession and high >= armedLow and close < armedLow
+longSignal = requireRetest ? retestLong : breakoutLong
+shortSignal = requireRetest ? retestShort : breakoutShort
+newLong = longSignal and not longSignal[1]
+newShort = shortSignal and not shortSignal[1]
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+calcLongTarget(entry, stop, highLevel, lowLevel) =>
+    risk = entry - stop
+    targetMode == "Range Height" ? entry + rangeHeightTargetMult * (highLevel - lowLevel) : entry + rrTarget * risk
+
+calcShortTarget(entry, stop, highLevel, lowLevel) =>
+    risk = stop - entry
+    targetMode == "Range Height" ? entry - rangeHeightTargetMult * (highLevel - lowLevel) : entry - rrTarget * risk
+
+if newLong
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    highLevel = requireRetest ? armedHigh : rangeHigh
+    lowLevel = requireRetest ? armedLow : rangeLow
+    tradeStop := (highLevel + lowLevel) / 2.0
+    tradeTarget := calcLongTarget(tradeEntry, tradeStop, highLevel, lowLevel)
+    armedLong := false
+else if newShort
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    highLevel = requireRetest ? armedHigh : rangeHigh
+    lowLevel = requireRetest ? armedLow : rangeLow
+    tradeStop := (highLevel + lowLevel) / 2.0
+    tradeTarget := calcShortTarget(tradeEntry, tradeStop, highLevel, lowLevel)
+    armedShort := false
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget or close < tradeStop
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget or close > tradeStop
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if sessionEnd
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActive = (activeLong or activeShort) and not na(tradeEntry)
+newSetup = newLong or newShort
+activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(setupActive ? tradeEntry : na, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(setupActive ? tradeStop : na, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(setupActive ? tradeTarget : na, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(compressionOk ? 1 : 0, "Compression OK", color=color.new(color.gray, 0))
+plot(armedLong ? 1 : 0, "Long Breakout Armed", color=color.new(color.teal, 0))
+plot(armedShort ? 1 : 0, "Short Breakout Armed", color=color.new(color.orange, 0))
+plot(volumeOk ? 1 : 0, "Volume OK", color=color.new(color.yellow, 0))
+
+plot(rangeReady ? rangeHigh : na, "Compression Range High", color=color.new(color.blue, 0), style=plot.style_linebr)
+plot(rangeReady ? rangeLow : na, "Compression Range Low", color=color.new(color.blue, 0), style=plot.style_linebr)
+plot(bbUpper, "BB Upper", color=color.new(color.gray, 75))
+plot(bbLower, "BB Lower", color=color.new(color.gray, 75))
+
+plotshape(newLong, "T3 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T3 L")
+plotshape(newShort, "T3 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T3 S")
+alertcondition(newSetup, "T3 Compression New Setup", "T3_COMPRESS setup on {{ticker}}.")

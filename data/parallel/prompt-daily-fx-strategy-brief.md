@@ -64,9 +64,9 @@ Recommend ONLY these Template IDs. Map to exact Pine filenames.
 
 | Template ID | Strategy Name | Scenario | Chart TF | Entry Session UTC | Pine Screener | Pine Strategy | Tier |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T1_VWAP | VWAP Pullback Continuation | Trend continuation / institutional fair-value pullback | M15 | 0800-1800 | pending: `vwap-pullback-continuation.pine` | pending: `vwap-pullback-continuation-strategy.pine` | PRIMARY |
-| T2_SWEEP | Asian Range Liquidity Sweep + MSS | Liquidity sweep reversal / range-day false move | M15 | 0600-1000 | pending: `asian-range-liquidity-sweep-mss.pine` | pending: `asian-range-liquidity-sweep-mss-strategy.pine` | PRIMARY |
-| T3_COMPRESS | Volatility Compression Expansion + Retest | Compression breakout / expansion day | H1 + M15 | 0700-1000 or 1200-1600 | pending: `vol-compression-expansion-retest.pine` | pending: `vol-compression-expansion-retest-strategy.pine` | SECONDARY |
+| T1_VWAP | VWAP Pullback Continuation | Trend continuation / institutional fair-value pullback | M15 | 0800-1800 | `vwap-pullback-continuation.pine` | pending: `vwap-pullback-continuation-strategy.pine` | PRIMARY |
+| T2_SWEEP | Asian Range Liquidity Sweep + MSS | Liquidity sweep reversal / range-day false move | M15 | 0600-1000 | `asian-range-liquidity-sweep-mss.pine` | pending: `asian-range-liquidity-sweep-mss-strategy.pine` | PRIMARY |
+| T3_COMPRESS | Volatility Compression Expansion + Retest | Compression breakout / expansion day | H1 + M15 | 0700-1000 or 1200-1600 | `vol-compression-expansion-retest.pine` | pending: `vol-compression-expansion-retest-strategy.pine` | SECONDARY |
 | T4_SWING_BACKUP | Supertrend + 200 EMA Long | Swing backup when intraday blocked | 1D | N/A | supertrend-ema-atr-long.pine | (no strategy file) | BACKUP |
 | T0_NO_TRADE | No Trade / Cash Mode | Holiday, event, drift, no edge | — | — | — | — | BLOCK |
 

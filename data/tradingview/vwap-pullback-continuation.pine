@@ -1,0 +1,139 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T1_VWAP | Indicator | Use after macro brief + daily selector.
+indicator("T1 VWAP Pullback Continuation", overlay=true)
+
+sessionGroup = "Session"
+entrySession = input.session("0800-1800", "Entry Session UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+manualNewsBlock = input.bool(false, "Manual News/Event Block", group=sessionGroup)
+
+trendGroup = "Trend / Pullback"
+emaFastLength = input.int(9, "Fast EMA", minval=1, group=trendGroup)
+emaSlowLength = input.int(20, "Slow EMA", minval=1, group=trendGroup)
+useEma200 = input.bool(false, "Require EMA 200 Direction Filter", group=trendGroup)
+emaTrendLength = input.int(200, "Trend EMA Length", minval=1, group=trendGroup)
+vwapSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, group=trendGroup)
+pullbackAtrZone = input.float(0.35, "VWAP / EMA Pullback Zone ATR Fraction", minval=0.05, step=0.05, group=trendGroup)
+requireVolume = input.bool(true, "Require Volume Confirmation", group=trendGroup)
+
+riskGroup = "Risk / Target"
+atrLength = input.int(14, "ATR Length", minval=1, group=riskGroup)
+stopAtrMult = input.float(1.5, "Stop ATR Multiplier", minval=0.5, step=0.1, group=riskGroup)
+rrTarget = input.float(2.0, "Reward Risk Target", minval=0.5, step=0.1, group=riskGroup)
+volumeLength = input.int(20, "Volume Average Length", minval=1, group=riskGroup)
+volumeMultiplier = input.float(1.0, "Volume Multiplier", minval=0.1, step=0.05, group=riskGroup)
+
+inSession = not manualNewsBlock and not na(time(timeframe.period, entrySession, sessionTimezone))
+sessionStart = inSession and not inSession[1]
+sessionEnd = not inSession and inSession[1]
+
+atr = ta.atr(atrLength)
+emaFast = ta.ema(close, emaFastLength)
+emaSlow = ta.ema(close, emaSlowLength)
+emaTrend = ta.ema(close, emaTrendLength)
+vol = nz(volume, 1.0)
+volAvg = ta.sma(vol, volumeLength)
+volumeOk = not requireVolume or vol >= volAvg * volumeMultiplier
+
+var float cumPv = na
+var float cumVol = na
+if inSession
+    if sessionStart or na(cumVol)
+        cumPv := hlc3 * vol
+        cumVol := vol
+    else
+        cumPv += hlc3 * vol
+        cumVol += vol
+else
+    cumPv := na
+    cumVol := na
+
+anchoredVwap = not na(cumVol) and cumVol > 0 ? cumPv / cumVol : na
+vwapValue = not na(anchoredVwap) ? anchoredVwap : ta.vwap(hlc3)
+vwapSlopeUp = not na(vwapValue[vwapSlopeBars]) and vwapValue > vwapValue[vwapSlopeBars]
+vwapSlopeDown = not na(vwapValue[vwapSlopeBars]) and vwapValue < vwapValue[vwapSlopeBars]
+
+nearVwap = math.abs(close - vwapValue) <= atr * pullbackAtrZone or (low <= vwapValue and high >= vwapValue)
+nearEma = math.abs(close - emaSlow) <= atr * pullbackAtrZone or (low <= emaSlow and high >= emaSlow)
+pullbackZone = nearVwap or nearEma
+
+longBias = close > vwapValue and emaFast > emaSlow and vwapSlopeUp and (not useEma200 or close > emaTrend)
+shortBias = close < vwapValue and emaFast < emaSlow and vwapSlopeDown and (not useEma200 or close < emaTrend)
+longRejection = close > open and close > vwapValue and close > emaSlow
+shortRejection = close < open and close < vwapValue and close < emaSlow
+
+longSignal = inSession and longBias and pullbackZone and longRejection and volumeOk
+shortSignal = inSession and shortBias and pullbackZone and shortRejection and volumeOk
+newLong = longSignal and not longSignal[1]
+newShort = shortSignal and not shortSignal[1]
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+if newLong
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    rawStop = math.min(low, close - stopAtrMult * atr)
+    tradeStop := rawStop
+    risk = tradeEntry - tradeStop
+    tradeTarget := risk > 0 ? tradeEntry + rrTarget * risk : na
+else if newShort
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    rawStop = math.max(high, close + stopAtrMult * atr)
+    tradeStop := rawStop
+    risk = tradeStop - tradeEntry
+    tradeTarget := risk > 0 ? tradeEntry - rrTarget * risk : na
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if sessionEnd
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActive = (activeLong or activeShort) and not na(tradeEntry)
+newSetup = newLong or newShort
+activeRisk = setupActive ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActive ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActive and activeRisk > 0 ? activeReward / activeRisk : na
+
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(setupActive ? tradeEntry : na, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(setupActive ? tradeStop : na, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(setupActive ? tradeTarget : na, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(rewardRiskRatio, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(longBias ? 1 : 0, "Long Bias", color=color.new(color.teal, 0))
+plot(shortBias ? 1 : 0, "Short Bias", color=color.new(color.orange, 0))
+plot(volumeOk ? 1 : 0, "Volume OK", color=color.new(color.gray, 0))
+plot(inSession ? 1 : 0, "In Session", color=color.new(color.yellow, 0))
+
+plot(vwapValue, "Anchored VWAP", color=color.new(color.purple, 0), linewidth=2)
+plot(emaFast, "EMA 9", color=color.new(color.teal, 0))
+plot(emaSlow, "EMA 20", color=color.new(color.yellow, 0))
+plot(useEma200 ? emaTrend : na, "EMA 200", color=color.new(color.orange, 40))
+
+plotshape(newLong, "T1 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T1 L")
+plotshape(newShort, "T1 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T1 S")
+alertcondition(newSetup, "T1 VWAP New Setup", "T1_VWAP setup on {{ticker}}.")

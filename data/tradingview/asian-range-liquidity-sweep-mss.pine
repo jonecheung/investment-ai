@@ -1,0 +1,169 @@
+//@version=5
+// PASTE INSTRUCTION: Select ALL default Pine Editor code, delete it, then paste ONLY this file.
+// Template T2_SWEEP | Indicator | Asian range liquidity sweep + MSS proxy.
+indicator("T2 Asian Range Liquidity Sweep + MSS", overlay=true)
+
+sessionGroup = "Sessions"
+asianSession = input.session("0000-0600", "Asian Range Session UTC", group=sessionGroup)
+londonSession = input.session("0600-1000", "London Killzone UTC", group=sessionGroup)
+sessionTimezone = input.string("Etc/UTC", "Session Timezone", group=sessionGroup)
+manualNewsBlock = input.bool(false, "Manual News/Event Block", group=sessionGroup)
+
+sweepGroup = "Sweep / MSS"
+mssLookback = input.int(4, "MSS Swing Lookback", minval=2, maxval=20, group=sweepGroup)
+requireDisplacement = input.bool(true, "Require Displacement Candle", group=sweepGroup)
+displacementBodyMin = input.float(0.55, "Displacement Body % Min", minval=0.1, maxval=1.0, step=0.05, group=sweepGroup)
+requireFvg = input.bool(false, "Require Simple FVG", group=sweepGroup)
+rangeMinAtr = input.float(0.25, "Asian Range Min ATR", minval=0.0, step=0.05, group=sweepGroup)
+rangeMaxAtr = input.float(3.00, "Asian Range Max ATR", minval=0.1, step=0.10, group=sweepGroup)
+
+riskGroup = "Risk / Target"
+atrLength = input.int(14, "ATR Length", minval=1, group=riskGroup)
+stopBufferAtr = input.float(0.20, "Stop Buffer ATR Beyond Sweep", minval=0.0, step=0.05, group=riskGroup)
+minRewardRisk = input.float(1.5, "Minimum Reward Risk", minval=0.5, step=0.1, group=riskGroup)
+targetMode = input.string("Opposite Asian Side", "Target Mode", options=["Opposite Asian Side", "Asian Mid", "Fixed RR"], group=riskGroup)
+fixedRrTarget = input.float(2.0, "Fixed RR Target", minval=0.5, step=0.1, group=riskGroup)
+
+inAsian = not na(time(timeframe.period, asianSession, sessionTimezone))
+inLondon = not manualNewsBlock and not na(time(timeframe.period, londonSession, sessionTimezone))
+asianStart = inAsian and not inAsian[1]
+asianEnd = not inAsian and inAsian[1]
+londonEnd = not inLondon and inLondon[1]
+
+atr = ta.atr(atrLength)
+body = math.abs(close - open)
+barRange = high - low
+bodyPct = barRange > 0 ? body / barRange : 0.0
+displacementOk = not requireDisplacement or bodyPct >= displacementBodyMin
+
+var float asianHigh = na
+var float asianLow = na
+var float lockedAsianHigh = na
+var float lockedAsianLow = na
+var bool rangeReady = false
+var bool sweptAbove = false
+var bool sweptBelow = false
+var float sweepHighExtreme = na
+var float sweepLowExtreme = na
+
+if asianStart
+    asianHigh := high
+    asianLow := low
+    lockedAsianHigh := na
+    lockedAsianLow := na
+    rangeReady := false
+    sweptAbove := false
+    sweptBelow := false
+    sweepHighExtreme := na
+    sweepLowExtreme := na
+else if inAsian
+    asianHigh := na(asianHigh) ? high : math.max(asianHigh, high)
+    asianLow := na(asianLow) ? low : math.min(asianLow, low)
+
+if asianEnd
+    lockedAsianHigh := asianHigh
+    lockedAsianLow := asianLow
+    rangeReady := not na(lockedAsianHigh) and not na(lockedAsianLow) and lockedAsianHigh > lockedAsianLow
+    sweptAbove := false
+    sweptBelow := false
+    sweepHighExtreme := na
+    sweepLowExtreme := na
+
+if inLondon and rangeReady
+    if high > lockedAsianHigh
+        sweptAbove := true
+        sweepHighExtreme := na(sweepHighExtreme) ? high : math.max(sweepHighExtreme, high)
+    if low < lockedAsianLow
+        sweptBelow := true
+        sweepLowExtreme := na(sweepLowExtreme) ? low : math.min(sweepLowExtreme, low)
+
+asianRange = rangeReady ? lockedAsianHigh - lockedAsianLow : na
+asianMid = rangeReady ? (lockedAsianHigh + lockedAsianLow) / 2.0 : na
+rangeOk = rangeReady and asianRange >= atr * rangeMinAtr and asianRange <= atr * rangeMaxAtr
+
+closeBackInsideAfterLowSweep = rangeReady and sweptBelow and close > lockedAsianLow and close < lockedAsianHigh
+closeBackInsideAfterHighSweep = rangeReady and sweptAbove and close < lockedAsianHigh and close > lockedAsianLow
+bullMss = close > ta.highest(high[1], mssLookback)
+bearMss = close < ta.lowest(low[1], mssLookback)
+bullFvg = low > high[2]
+bearFvg = high < low[2]
+fvgLongOk = not requireFvg or bullFvg
+fvgShortOk = not requireFvg or bearFvg
+
+longSignal = inLondon and rangeOk and closeBackInsideAfterLowSweep and bullMss and displacementOk and fvgLongOk
+shortSignal = inLondon and rangeOk and closeBackInsideAfterHighSweep and bearMss and displacementOk and fvgShortOk
+newLong = longSignal and not longSignal[1]
+newShort = shortSignal and not shortSignal[1]
+
+var bool activeLong = false
+var bool activeShort = false
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+
+calcLongTarget(entry, stop) =>
+    risk = entry - stop
+    targetMode == "Asian Mid" ? asianMid : targetMode == "Fixed RR" ? entry + fixedRrTarget * risk : lockedAsianHigh
+
+calcShortTarget(entry, stop) =>
+    risk = stop - entry
+    targetMode == "Asian Mid" ? asianMid : targetMode == "Fixed RR" ? entry - fixedRrTarget * risk : lockedAsianLow
+
+if newLong
+    activeLong := true
+    activeShort := false
+    tradeEntry := close
+    sweepExtreme = na(sweepLowExtreme) ? lockedAsianLow : sweepLowExtreme
+    tradeStop := sweepExtreme - stopBufferAtr * atr
+    tradeTarget := calcLongTarget(tradeEntry, tradeStop)
+else if newShort
+    activeShort := true
+    activeLong := false
+    tradeEntry := close
+    sweepExtreme = na(sweepHighExtreme) ? lockedAsianHigh : sweepHighExtreme
+    tradeStop := sweepExtreme + stopBufferAtr * atr
+    tradeTarget := calcShortTarget(tradeEntry, tradeStop)
+
+if activeLong and not na(tradeStop) and not na(tradeTarget)
+    if low <= tradeStop or high >= tradeTarget
+        activeLong := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if activeShort and not na(tradeStop) and not na(tradeTarget)
+    if high >= tradeStop or low <= tradeTarget
+        activeShort := false
+        tradeEntry := na
+        tradeStop := na
+        tradeTarget := na
+
+if londonEnd
+    activeLong := false
+    activeShort := false
+    tradeEntry := na
+    tradeStop := na
+    tradeTarget := na
+
+setupActiveRaw = (activeLong or activeShort) and not na(tradeEntry)
+activeRisk = setupActiveRaw ? (activeLong ? tradeEntry - tradeStop : tradeStop - tradeEntry) : na
+activeReward = setupActiveRaw ? (activeLong ? tradeTarget - tradeEntry : tradeEntry - tradeTarget) : na
+rewardRiskRatio = setupActiveRaw and activeRisk > 0 ? activeReward / activeRisk : na
+setupActive = setupActiveRaw and rewardRiskRatio >= minRewardRisk
+newSetup = (newLong or newShort) and setupActive
+
+plot(setupActive ? 1 : 0, "Setup Active", color=color.new(color.green, 0))
+plot(newSetup ? 1 : 0, "New Setup", color=color.new(color.lime, 0))
+plot(setupActive ? tradeEntry : na, "Entry Price", color=color.new(color.blue, 0), linewidth=2)
+plot(setupActive ? tradeStop : na, "Stop Price", color=color.new(color.red, 0), linewidth=2)
+plot(setupActive ? tradeTarget : na, "Target Price", color=color.new(color.green, 0), linewidth=2)
+plot(setupActive ? rewardRiskRatio : na, "Reward Risk Ratio", color=color.new(color.purple, 0))
+plot(rangeReady ? lockedAsianHigh : na, "Asian High", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(rangeReady ? lockedAsianLow : na, "Asian Low", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+plot(sweptBelow ? 1 : 0, "Sweep Low", color=color.new(color.teal, 0))
+plot(sweptAbove ? 1 : 0, "Sweep High", color=color.new(color.orange, 0))
+
+plot(rangeReady ? asianMid : na, "Asian Mid", color=color.new(color.orange, 60), style=plot.style_linebr)
+plotshape(newLong, "T2 Long Setup", shape.triangleup, location.belowbar, color=color.green, size=size.small, text="T2 L")
+plotshape(newShort, "T2 Short Setup", shape.triangledown, location.abovebar, color=color.red, size=size.small, text="T2 S")
+alertcondition(newSetup, "T2 Sweep New Setup", "T2_SWEEP setup on {{ticker}}.")
