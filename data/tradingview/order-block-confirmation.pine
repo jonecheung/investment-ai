@@ -25,6 +25,15 @@ useVolumeFilter = input.bool(false, "Require Volume Above Average", group=filter
 volumeLength = input.int(20, "Volume Average Length", minval=1, group=filterGroup)
 volumeMultiplier = input.float(1.0, "Volume Multiplier", minval=0.1, step=0.05, group=filterGroup)
 
+flowGroup = "CVD / Absorption / Exhaustion"
+requireFlowConfirm = input.bool(true, "Require Flow Confirmation For OB Rejection", group=flowGroup)
+cvdLookback = input.int(5, "CVD Direction Lookback", minval=1, group=flowGroup)
+cvdSmoothing = input.int(3, "CVD Smoothing", minval=1, group=flowGroup)
+divergenceLookback = input.int(20, "Exhaustion Divergence Lookback", minval=5, group=flowGroup)
+absorptionVolumeMultiplier = input.float(1.5, "Absorption / Exhaustion Volume Spike", minval=0.5, step=0.1, group=flowGroup)
+wickPctMin = input.float(0.35, "Absorption Wick % Min", minval=0.1, maxval=0.9, step=0.05, group=flowGroup)
+exhaustionBodyMax = input.float(0.35, "Exhaustion Body % Max", minval=0.05, maxval=0.8, step=0.05, group=flowGroup)
+
 zoneGroup = "Zone Management"
 stopBufferAtr = input.float(0.10, "Invalidation Buffer ATR", minval=0.0, step=0.05, group=zoneGroup)
 deactivateAfterMitigation = input.bool(false, "Deactivate Zone After First Rejection", group=zoneGroup)
@@ -43,15 +52,37 @@ emaSlow = ta.ema(close, emaSlowLength)
 vol = nz(volume, 1.0)
 volAvg = ta.sma(vol, volumeLength)
 volumeOk = not useVolumeFilter or vol >= volAvg * volumeMultiplier
+volumeSpike = vol >= volAvg * absorptionVolumeMultiplier
 
 body = math.abs(close - open)
 barRange = high - low
 bodyPct = barRange > 0 ? body / barRange : 0.0
+lowerWickPct = barRange > 0 ? (math.min(open, close) - low) / barRange : 0.0
+upperWickPct = barRange > 0 ? (high - math.max(open, close)) / barRange : 0.0
 displacementOk = barRange >= atr * displacementAtrMin and bodyPct >= displacementBodyMin
 bullFvg = low > high[2]
 bearFvg = high < low[2]
 fvgLongOk = not requireFvg or bullFvg
 fvgShortOk = not requireFvg or bearFvg
+
+sessionStart = inSession and not inSession[1]
+signedVolume = close > open ? vol : close < open ? -vol : 0.0
+var float cvd = na
+if sessionStart or na(cvd)
+    cvd := signedVolume
+else if inSession
+    cvd += signedVolume
+
+cvdSmooth = ta.ema(cvd, cvdSmoothing)
+cvdDelta = cvdSmooth - cvdSmooth[cvdLookback]
+cvdRising = cvdDelta > 0
+cvdFalling = cvdDelta < 0
+priceLowerLow = low <= ta.lowest(low[1], divergenceLookback)
+priceHigherHigh = high >= ta.highest(high[1], divergenceLookback)
+cvdLowerLow = cvdSmooth <= ta.lowest(cvdSmooth[1], divergenceLookback)
+cvdHigherHigh = cvdSmooth >= ta.highest(cvdSmooth[1], divergenceLookback)
+bullishExhaustionDivergence = priceLowerLow and not cvdLowerLow
+bearishExhaustionDivergence = priceHigherHigh and not cvdHigherHigh
 
 previousHigh = ta.highest(high[1], structureLookback)
 previousLow = ta.lowest(low[1], structureLookback)
@@ -134,8 +165,17 @@ if newBearImpulse
 bullObTouched = bullObActive and not na(bullObHigh) and low <= bullObHigh and high >= bullObLow
 bearObTouched = bearObActive and not na(bearObLow) and high >= bearObLow and low <= bearObHigh
 
-bullRejection = bullObTouched and close > open and close > bullObHigh
-bearRejection = bearObTouched and close < open and close < bearObLow
+bullAbsorption = bullObTouched and volumeSpike and lowerWickPct >= wickPctMin and close > bullObLow and cvdFalling
+bearAbsorption = bearObTouched and volumeSpike and upperWickPct >= wickPctMin and close < bearObHigh and cvdRising
+bullExhaustion = bullObTouched and volumeSpike and bodyPct <= exhaustionBodyMax and bullishExhaustionDivergence
+bearExhaustion = bearObTouched and volumeSpike and bodyPct <= exhaustionBodyMax and bearishExhaustionDivergence
+bullFlowConfirm = cvdRising or bullAbsorption or bullExhaustion
+bearFlowConfirm = cvdFalling or bearAbsorption or bearExhaustion
+
+bullPriceRejection = bullObTouched and close > open and close > bullObHigh
+bearPriceRejection = bearObTouched and close < open and close < bearObLow
+bullRejection = bullPriceRejection and (not requireFlowConfirm or bullFlowConfirm)
+bearRejection = bearPriceRejection and (not requireFlowConfirm or bearFlowConfirm)
 
 bullInvalidated = bullObActive and close < bullObLow - stopBufferAtr * atr
 bearInvalidated = bearObActive and close > bearObHigh + stopBufferAtr * atr
@@ -148,7 +188,7 @@ if newBullRejection
     label.new(
          bar_index,
          low,
-         "Bullish OB Rejection\nZone: " + str.tostring(bullObLow, format.mintick) + " - " + str.tostring(bullObHigh, format.mintick),
+         "Bullish OB + Flow Confirm\nZone: " + str.tostring(bullObLow, format.mintick) + " - " + str.tostring(bullObHigh, format.mintick) + "\nFlow: " + (bullAbsorption ? "Absorption" : bullExhaustion ? "Exhaustion" : "CVD Rising"),
          style=label.style_label_up,
          textcolor=color.white,
          color=color.new(color.green, 0))
@@ -160,7 +200,7 @@ if newBearRejection
     label.new(
          bar_index,
          high,
-         "Bearish OB Rejection\nZone: " + str.tostring(bearObLow, format.mintick) + " - " + str.tostring(bearObHigh, format.mintick),
+         "Bearish OB + Flow Confirm\nZone: " + str.tostring(bearObLow, format.mintick) + " - " + str.tostring(bearObHigh, format.mintick) + "\nFlow: " + (bearAbsorption ? "Absorption" : bearExhaustion ? "Exhaustion" : "CVD Falling"),
          style=label.style_label_down,
          textcolor=color.white,
          color=color.new(color.red, 0))
@@ -191,6 +231,11 @@ plot(bullObActive ? 1 : 0, "Bullish OB Active", color=color.new(color.green, 0))
 plot(bearObActive ? 1 : 0, "Bearish OB Active", color=color.new(color.red, 0))
 plot(longConfirmation ? 1 : 0, "Long OB Confirmation", color=color.new(color.lime, 0))
 plot(shortConfirmation ? 1 : 0, "Short OB Confirmation", color=color.new(color.orange, 0))
+plot(bullAbsorption ? 1 : 0, "Bullish Absorption", color=color.new(color.teal, 0))
+plot(bearAbsorption ? 1 : 0, "Bearish Absorption", color=color.new(color.purple, 0))
+plot(bullExhaustion ? 1 : 0, "Bullish Exhaustion Divergence", color=color.new(color.aqua, 0))
+plot(bearExhaustion ? 1 : 0, "Bearish Exhaustion Divergence", color=color.new(color.fuchsia, 0))
+plot(cvdDelta, "CVD Delta", color=color.new(color.blue, 0))
 plot(confirmationCode, "Confirmation Code (-1=Short,0=Neutral,1=Long)", color=color.new(color.white, 0))
 
 plot(showEma ? emaFast : na, "EMA Fast", color=color.new(color.teal, 0))
@@ -200,14 +245,22 @@ plotshape(newBullImpulse, "New Bullish OB", shape.square, location.belowbar, col
 plotshape(newBearImpulse, "New Bearish OB", shape.square, location.abovebar, color=color.new(color.red, 0), size=size.tiny, text="OB-")
 plotshape(longConfirmation, "Bullish OB Rejection", shape.triangleup, location.belowbar, color=color.lime, size=size.small, text="OB L")
 plotshape(shortConfirmation, "Bearish OB Rejection", shape.triangledown, location.abovebar, color=color.orange, size=size.small, text="OB S")
+plotshape(bullAbsorption, "Bullish Absorption", shape.circle, location.belowbar, color=color.teal, size=size.tiny, text="ABS")
+plotshape(bearAbsorption, "Bearish Absorption", shape.circle, location.abovebar, color=color.purple, size=size.tiny, text="ABS")
+plotshape(bullExhaustion, "Bullish Exhaustion", shape.diamond, location.belowbar, color=color.aqua, size=size.tiny, text="EXH")
+plotshape(bearExhaustion, "Bearish Exhaustion", shape.diamond, location.abovebar, color=color.fuchsia, size=size.tiny, text="EXH")
 
-alertcondition(longConfirmation, "Order Block Long Confirmation", "Bullish order-block rejection on {{ticker}} {{interval}}.")
-alertcondition(shortConfirmation, "Order Block Short Confirmation", "Bearish order-block rejection on {{ticker}} {{interval}}.")
+alertcondition(longConfirmation, "Order Block Long Confirmation", "Bullish order-block rejection with flow confirmation on {{ticker}} {{interval}}.")
+alertcondition(shortConfirmation, "Order Block Short Confirmation", "Bearish order-block rejection with flow confirmation on {{ticker}} {{interval}}.")
 alertcondition(newBullImpulse, "New Bullish Order Block", "New bullish order block created on {{ticker}} {{interval}}.")
 alertcondition(newBearImpulse, "New Bearish Order Block", "New bearish order block created on {{ticker}} {{interval}}.")
+alertcondition(bullAbsorption, "Bullish Absorption At OB", "Bullish absorption detected inside order block on {{ticker}} {{interval}}.")
+alertcondition(bearAbsorption, "Bearish Absorption At OB", "Bearish absorption detected inside order block on {{ticker}} {{interval}}.")
+alertcondition(bullExhaustion, "Bullish Exhaustion At OB", "Bullish exhaustion divergence detected at order block on {{ticker}} {{interval}}.")
+alertcondition(bearExhaustion, "Bearish Exhaustion At OB", "Bearish exhaustion divergence detected at order block on {{ticker}} {{interval}}.")
 
 pos = tablePosition == "Top Left" ? position.top_left : tablePosition == "Bottom Right" ? position.bottom_right : tablePosition == "Bottom Left" ? position.bottom_left : position.top_right
-var table infoTable = table.new(pos, 2, 8, border_width=1)
+var table infoTable = table.new(pos, 2, 12, border_width=1)
 
 zoneText(active, lowValue, highValue) =>
     active and not na(lowValue) and not na(highValue) ? str.tostring(lowValue, format.mintick) + " - " + str.tostring(highValue, format.mintick) : "None"
@@ -227,7 +280,15 @@ if showTable and barstate.islast
     table.cell(infoTable, 1, 4, displacementOk ? "YES" : "NO", text_color=color.white, bgcolor=displacementOk ? color.new(color.green, 65) : color.new(color.red, 65))
     table.cell(infoTable, 0, 5, "Volume OK", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(infoTable, 1, 5, volumeOk ? "YES" : "NO", text_color=color.white, bgcolor=volumeOk ? color.new(color.green, 65) : color.new(color.red, 65))
-    table.cell(infoTable, 0, 6, "Session", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(infoTable, 1, 6, inSession ? "ACTIVE" : "OFF/BLOCK", text_color=color.white, bgcolor=inSession ? color.new(color.green, 70) : color.new(color.gray, 70))
-    table.cell(infoTable, 0, 7, "Use For", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(infoTable, 1, 7, "Confirmation only", text_color=color.white, bgcolor=color.new(color.black, 70))
+    table.cell(infoTable, 0, 6, "CVD Direction", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 6, cvdRising ? "Rising" : cvdFalling ? "Falling" : "Flat", text_color=color.white, bgcolor=cvdRising ? color.new(color.green, 65) : cvdFalling ? color.new(color.red, 65) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 7, "Absorption", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 7, bullAbsorption ? "Bullish" : bearAbsorption ? "Bearish" : "None", text_color=color.white, bgcolor=bullAbsorption ? color.new(color.teal, 45) : bearAbsorption ? color.new(color.purple, 45) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 8, "Exhaustion", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 8, bullExhaustion ? "Bullish" : bearExhaustion ? "Bearish" : "None", text_color=color.white, bgcolor=bullExhaustion ? color.new(color.aqua, 45) : bearExhaustion ? color.new(color.fuchsia, 45) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 9, "Flow Required", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 9, requireFlowConfirm ? "YES" : "NO", text_color=color.white, bgcolor=requireFlowConfirm ? color.new(color.green, 65) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 10, "Session", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 10, inSession ? "ACTIVE" : "OFF/BLOCK", text_color=color.white, bgcolor=inSession ? color.new(color.green, 70) : color.new(color.gray, 70))
+    table.cell(infoTable, 0, 11, "Use For", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(infoTable, 1, 11, "Flow confirmation", text_color=color.white, bgcolor=color.new(color.black, 70))
