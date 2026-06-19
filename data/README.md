@@ -9,6 +9,7 @@ Organize files by how they are used:
 ```
 data/
 ├── README.md
+├── crypto/          # BTC/ETH playbooks and crypto-specific research notes
 ├── notion/          # Notion database specs
 ├── parallel/        # Parallel API output contracts and paired prompts
 ├── portfolio/       # Portfolio policy, guardrails templates
@@ -18,6 +19,7 @@ data/
 
 | Folder | Purpose | Examples |
 | --- | --- | --- |
+| `crypto/` | Crypto-specific playbooks and research notes; separate from the FX daily workflow | `btc-eth-intraday-playbook.md` |
 | `notion/` | Notion database structure only | `research.md`, `portfolio.md` |
 | `portfolio/` | Portfolio planning policy and guardrails | `guardrails.yaml`, `guardrails.md` |
 | `parallel/` | Parallel Task API `output_schema` JSON and follow-up prompts used with it | `output-tradable-tickers.json`, `prompt-followup-tradable-tickers.md`, `output-daily-fx-strategy-brief.json`, `prompt-daily-fx-strategy-brief.md` |
