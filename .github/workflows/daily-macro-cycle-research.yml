@@ -1,10 +1,8 @@
 name: Daily Macro Cycle Research
 
 on:
-  schedule:
-    # Monday-Friday before the European trading session.
-    # This approximates trading days; market holidays are not filtered.
-    - cron: "30 6 * * 1-5"
+  # Schedule paused 2026-06-30 — redesigning intraday fundamental analysis pipeline.
+  # Re-enable cron only after explicit review.
   workflow_dispatch:
 
 jobs:
